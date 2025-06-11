@@ -1,32 +1,38 @@
-// db.js
-require('dotenv').config(); // Idealmente, esta es la primera línea
+// src/db.js
+require('dotenv').config();
+const { Pool } = require('pg');
 
-// Línea para la prueba de depuración de la contraseña (¡RECUERDA BORRARLA DESPUÉS!)
-// console.log("Contraseña que se usará para la BD:", process.env.DB_PASSWORD);
+// 1. Verificamos si estamos en el entorno de producción (en Render)
+const isProduction = process.env.NODE_ENV === 'production';
 
-const { Pool } = require('pg'); // <-- ESTA LÍNEA DEBE ESTAR SOLO UNA VEZ
+// 2. Definimos la cadena de conexión basada en el entorno
+const connectionString = isProduction 
+  ? process.env.DATABASE_URL // Usa la URL de la base de datos de Render
+  : `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_DATABASE}`; // Usa tus variables locales
 
-const pool = new Pool({ // Aquí se usa 'pool' en minúscula, que es diferente de 'Pool'
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || "5432"),
+// Depuración: Nos dirá en los logs qué entorno está usando
+console.log(`--- INICIANDO CONEXIÓN A LA BASE DE DATOS ---`);
+console.log(`Modo Producción: ${isProduction}`);
+
+// 3. Creamos el pool de conexiones con la configuración correcta
+const pool = new Pool({
+  connectionString: connectionString,
+  // En producción, Render requiere una conexión SSL.
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
 
-pool.connect((err, client, release) => {
-  if (err) {
-    // Si todavía tienes la línea de depuración de la contraseña arriba,
-    // este error podría aparecer DESPUÉS de ese console.log.
-    return console.error('Error adquiriendo cliente para la BD:', err.stack);
-  }
-  client.query('SELECT NOW()', (err, result) => {
-    release();
+// Añadimos un listener para errores de conexión
+pool.on('error', (err, client) => {
+  console.error('Error inesperado en el cliente inactivo de la base de datos', err);
+  process.exit(-1);
+});
+
+// Probamos la conexión al iniciar la aplicación
+pool.query('SELECT NOW()', (err, result) => {
     if (err) {
-      return console.error('Error ejecutando query de prueba:', err.stack);
+      return console.error('Error al ejecutar la query de prueba de conexión:', err.stack);
     }
-    console.log(`Conexión exitosa a la base de datos ${process.env.DB_DATABASE}: ${result.rows[0].now}`);
-  });
+    console.log(`Conexión exitosa a la base de datos: ${result.rows[0].now}`);
 });
 
-module.exports = pool; // Exportas 'pool' en minúscula
+module.exports = pool;
