@@ -1,0 +1,10 @@
+# Ignorar la carpeta de dependencias de Node
+node_modules
+
+# Ignorar el archivo de variables de entorno (¡muy importante por seguridad!)
+.env
+
+# Ignorar logs de npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
