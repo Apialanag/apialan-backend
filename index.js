@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- INICIO DE LA MODIFICACIÓN DE CORS (MUY IMPORTANTE) ---
+// --- INICIO DE LA MODIFICACIÓN DE CORS (CON DEPURACIÓN) ---
 
 // 1. Define la lista de orígenes (URLs) que tienen permiso para hablar con tu API.
 const whitelist = [
@@ -15,23 +15,28 @@ const whitelist = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // La lógica permite peticiones de la whitelist y peticiones sin origen (como las de Postman o apps móviles)
+    // --- LÍNEA DE DEPURACIÓN AÑADIDA ---
+    // Esto imprimirá en los logs de Render la URL de origen de CADA petición que llegue.
+    console.log('PETICIÓN RECIBIDA CON ORIGEN: ', origin); 
+    // ------------------------------------
+
+    // La lógica permite peticiones de la whitelist y peticiones sin origen (como las de Postman)
     if (whitelist.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
     } else {
       // Si el origen no está en la lista, lo rechaza.
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Origen no permitido por CORS'));
     }
   },
-  optionsSuccessStatus: 200 // Para compatibilidad con navegadores antiguos
+  optionsSuccessStatus: 200
 };
 
-// 2. Usa la configuración de CORS específica en lugar de la abierta.
+// 2. Usa la configuración de CORS específica.
 app.use(cors(corsOptions));
 
 // --- FIN DE LA MODIFICACIÓN ---
 
-app.use(express.json()); // Middleware para que Express entienda peticiones JSON
+app.use(express.json());
 
 // ----- RUTAS DE LA APLICACIÓN -----
 const espaciosRouter = require('./routes/espacios.routes.js');
@@ -49,7 +54,7 @@ app.get('/', (req, res) => {
   res.send('¡Hola! El backend de APIALAN AG está funcionando.');
 });
 
-// Ruta de prueba de BD (opcional, puedes mantenerla o quitarla)
+// Ruta de prueba de BD (opcional)
 app.get('/testdb', async (req, res) => {
   try {
     const pool = require('./db.js');
@@ -63,5 +68,4 @@ app.get('/testdb', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
-  // El mensaje de conexión a la BD (de db.js) debería aparecer cuando el servidor inicia
 });
