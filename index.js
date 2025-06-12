@@ -45,10 +45,10 @@ const reservasRouter = require('./routes/reservas.routes.js');
 const authRouter = require('./routes/auth.routes.js');
 const adminRouter = require('./routes/admin.routes.js');
 
-app.use('/api/espacios', espaciosRouter);
-app.use('/api/reservas', reservasRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/admin', adminRouter);
+app.use('/espacios', espaciosRouter);
+app.use('/reservas', reservasRouter);
+app.use('/auth', authRouter);
+app.use('/admin', adminRouter);
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {
