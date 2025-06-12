@@ -1,45 +1,41 @@
+// Archivo: index.js de tu proyecto de backend
+
 require('dotenv').config();
 const express = require('express');
-// Para esta prueba final, no usaremos la librería cors, sino cabeceras manuales.
-// const cors = require('cors'); 
+const cors = require('cors'); // <-- 1. Asegúrate de que cors esté importado
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- INICIO DE LA CONFIGURACIÓN DE CORS MANUAL (PRUEBA DEFINITIVA) ---
+// --- INICIO DE LA CONFIGURACIÓN DE CORS (CORREGIDA) ---
 
-// Este middleware intercepta todas las peticiones entrantes.
-app.use((req, res, next) => {
-  // Le damos permiso a CUALQUIER origen (*).
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  
-  // Le decimos qué cabeceras están permitidas en la petición.
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-  );
-  
-  // Le decimos qué métodos HTTP están permitidos.
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, PATCH, OPTIONS'
-  );
-  
-  // Si la petición es un OPTIONS (pre-vuelo de CORS), respondemos OK y terminamos.
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+// 2. Define la lista de orígenes permitidos (tu frontend en Vercel y tu entorno local).
+const whitelist = [
+  'https://reservas-oficinas-apialan.vercel.app',
+  'http://localhost:5173' // Puerto por defecto de Vite para desarrollo local
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite peticiones si el origen está en la lista blanca o si no tienen origen (como Postman/Insomnia)
+    if (whitelist.includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por la política de CORS'));
+    }
   }
-  
-  // Si no, continuamos al siguiente middleware.
-  next();
-});
+};
+
+// 3. Usa el middleware de cors con tus opciones.
+// Esto manejará automáticamente las peticiones GET, POST y las de pre-vuelo (OPTIONS).
+app.use(cors(corsOptions));
 
 // --- FIN DE LA CONFIGURACIÓN ---
 
 
 app.use(express.json());
 
-// ----- RUTAS DE LA APLICACIÓN -----
+// ----- RUTAS DE LA APLICACIÓN (estas no cambian) -----
 const espaciosRouter = require('./routes/espacios.routes.js');
 const reservasRouter = require('./routes/reservas.routes.js');
 const authRouter = require('./routes/auth.routes.js');
