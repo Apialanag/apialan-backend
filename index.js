@@ -1,29 +1,24 @@
 require('dotenv').config();
-const express = 'express';
-const cors = 'cors';
+// --- CORRECCIÓN: Se usa require() para importar las librerías ---
+const express = require('express');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- INICIO DE LA NUEVA CONFIGURACIÓN DE CORS ---
-
-// 1. Define la lista de orígenes permitidos.
+// --- Configuración de CORS ---
 const whitelist = [
     'http://localhost:5173',
     'https://reservas-oficinas-apialan.vercel.app'
 ];
 
-// 2. Crea una configuración de CORS que usa la lista blanca.
-//    Esta configuración es más directa y estándar.
 const corsOptions = {
     origin: whitelist,
     optionsSuccessStatus: 200
 };
 
-// 3. Usa la nueva configuración.
 app.use(cors(corsOptions));
-
-// --- FIN DE LA NUEVA CONFIGURACIÓN ---
+// ----------------------------
 
 app.use(express.json());
 
