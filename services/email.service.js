@@ -51,7 +51,7 @@ const enviarEmailSolicitudRecibida = async (reserva) => {
             <li><strong>Fecha:</strong> ${new Date(reserva.fecha_reserva).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</li>
             <li><strong>Horario:</strong> ${reserva.hora_inicio.substring(0, 5)} - ${reserva.hora_termino.substring(0, 5)}</li>
           </ul>
-          <p>Saludos,<br>El equipo de Apialan</p>
+          <p>Saludos,<br>El equipo de Apialan AG</p>
         </div>
       `,
     };
@@ -84,7 +84,7 @@ const enviarEmailReservaConfirmada = async (reserva) => {
             <li><strong>Horario:</strong> ${reserva.hora_inicio.substring(0, 5)} - ${reserva.hora_termino.substring(0, 5)}</li>
           </ul>
           <p>Si necesitas hacer cambios o tienes alguna consulta, no dudes en contactarnos.</p>
-          <p>Saludos,<br>El equipo de Apialan</p>
+          <p>Saludos,<br>El equipo de Apialan AG</p>
         </div>
       `,
     };
@@ -115,7 +115,7 @@ const enviarEmailCancelacionCliente = async (reserva) => {
             <li><strong>Fecha:</strong> ${new Date(reserva.fecha_reserva).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</li>
           </ul>
           <p>El espacio ha sido liberado. Esperamos verte de nuevo pronto.</p>
-          <p>Saludos,<br>El equipo de Apialan</p>
+          <p>Saludos,<br>El equipo de Apialan AG</p>
         </div>
       `,
     };
@@ -146,7 +146,7 @@ const enviarEmailCancelacionAdmin = async (reserva) => {
             <li><strong>Fecha:</strong> ${new Date(reserva.fecha_reserva).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</li>
           </ul>
           <p>Si tienes alguna duda sobre esta cancelación, por favor, ponte en contacto con nosotros.</p>
-          <p>Saludos,<br>El equipo de Apialan</p>
+          <p>Saludos,<br>El equipo de Apialan AG</p>
         </div>
       `,
     };
