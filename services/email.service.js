@@ -1,3 +1,5 @@
+// Archivo: services/emailService.js
+
 const nodemailer = require('nodemailer');
 
 // Configuración del "Transportador" que enviará los emails usando Gmail.
@@ -11,7 +13,7 @@ const transporter = nodemailer.createTransport({
 });
 
 
-// --- FUNCIÓN 1: EMAIL DE SOLICITUD DE RESERVA RECIBIDA ---
+// --- FUNCIÓN 1: EMAIL DE SOLICITUD DE RESERVA RECIBIDA (ACTUALIZADA) ---
 /**
  * Envía un email inicial al cliente informando que su solicitud ha sido recibida
  * y está pendiente de pago.
@@ -25,20 +27,22 @@ const enviarEmailSolicitudRecibida = async (reserva) => {
       subject: `📄 Solicitud de Reserva Recibida (ID: ${reserva.id})`,
       html: `
         <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-          <h2>¡Hola, ${reserva.cliente_nombre}!</h2>
+          <h2 style="color: #4f46e5;">¡Hola, ${reserva.cliente_nombre}!</h2>
           <p>Hemos recibido tu solicitud de reserva y hemos guardado tu cupo temporalmente. Para confirmar tu reserva de forma definitiva, por favor realiza el pago.</p>
-          <hr>
-          <h3>Instrucciones de Pago:</h3>
-          <p>Puedes realizar una transferencia bancaria a la siguiente cuenta:</p>
-          <ul>
-            <li><strong>Banco:</strong> Tu Banco</li>
-            <li><strong>Tipo de Cuenta:</strong> Tu Tipo de Cuenta</li>
-            <li><strong>Número:</strong> Tu Número de Cuenta</li>
-            <li><strong>Nombre:</strong> Tu Nombre Completo</li>
-            <li><strong>RUT:</strong> Tu RUT</li>
-            <li><strong>Email:</strong> tu-email-para-comprobantes@apialan.cl</li>
-          </ul>
-          <p>Una vez realizado el pago, tu reserva será confirmada y recibirás un nuevo correo. Tienes un plazo de 24 horas para realizar el pago, de lo contrario, la solicitud podría ser cancelada.</p>
+          
+          <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Instrucciones de Pago</h3>
+          <p>Puedes realizar una transferencia bancaria por un total de <strong>${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(reserva.costo_total)}</strong> a la siguiente cuenta:</p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>Banco:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Banco Estado</td></tr>
+            <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Tipo de Cuenta:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Corriente</td></tr>
+            <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>Número de Cuenta:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">55100101199</td></tr>
+            <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Nombre:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Asociación de prestadores de servicios, industriales y artesanos de Los Ángeles.</td></tr>
+            <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>RUT:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">70.382.000-K</td></tr>
+            <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Email:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">cie@apialan.cl</td></tr>
+          </table>
+
+          <p style="margin-top: 20px;">Una vez realizado el pago, por favor envía el comprobante a nuestro correo <strong>cie@apialan.cl</strong> para confirmar tu reserva. Tienes un plazo de 24 horas para realizar el pago, de lo contrario, la solicitud podría ser cancelada.</p>
           <hr>
           <h3>Detalles de tu Solicitud:</h3>
           <ul>
@@ -61,10 +65,6 @@ const enviarEmailSolicitudRecibida = async (reserva) => {
 
 
 // --- FUNCIÓN 2: EMAIL DE RESERVA CONFIRMADA (TRAS EL PAGO) ---
-/**
- * Envía un email de confirmación final una vez que el admin verifica el pago.
- * @param {object} reserva - El objeto completo de la reserva.
- */
 const enviarEmailReservaConfirmada = async (reserva) => {
   try {
     const mailOptions = {
