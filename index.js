@@ -1,25 +1,25 @@
-// Archivo: index.js de tu proyecto de backend (con Health Check)
+// Archivo: index.js de tu proyecto de backend
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg'); // <-- Importante: Añadido para la conexión a la BD
+const { Pool } = require('pg'); // Tu importación para la conexión a la BD
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --- CONFIGURACIÓN DE LA CONEXIÓN A LA BASE DE DATOS ---
-// Se crea una única instancia de Pool para ser usada en toda la app.
+// Tu excelente implementación de un pool de conexiones global. ¡Perfecto!
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // Render provee esta variable
-  // Descomenta las siguientes líneas si necesitas SSL para conexiones locales a Render
-  // ssl: {
-  //   rejectUnauthorized: false
-  // }
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+   rejectUnauthorized: false
+  }
 });
 
 
 // --- CONFIGURACIÓN DE CORS ---
+// Tu configuración de whitelist está perfecta.
 const whitelist = [
   'https://reservas-oficinas-apialan.vercel.app',
   'http://localhost:5173'
@@ -40,23 +40,17 @@ app.use(express.json());
 
 
 // =================================================================
-//                 NUEVO ENDPOINT DE ESTADO (HEALTH CHECK)
+//          ENDPOINT DE ESTADO (HEALTH CHECK) - CORREGIDO
 // =================================================================
-app.get('/api/health', async (req, res) => {
-  console.log('Health check endpoint fue invocado.'); // Log para depuración
+
+// Se cambia la ruta a /health-check para mantener consistencia.
+app.get('/health-check', async (req, res) => {
+  console.log('Health check endpoint fue invocado.');
   try {
-    // Intenta hacer una consulta simple para verificar la conexión a la BD
-    const client = await pool.connect();
-    await client.query('SELECT 1'); // Despierta la conexión si está inactiva
-    client.release();
-    
-    // Si la consulta fue exitosa, responde con estado OK
-    res.status(200).json({ 
-        status: 'ok', 
-        message: 'El servidor y la conexión a la base de datos funcionan correctamente.' 
-    });
+    // Usamos el pool global directamente. Es más eficiente.
+    await pool.query('SELECT 1');
+    res.status(200).json({ status: 'ok', message: 'El servidor y la base de datos están activos.' });
   } catch (error) {
-    // Si hay un error, informa del problema
     console.error('Fallo en el health check:', error);
     res.status(503).json({ 
         status: 'error', 
@@ -65,8 +59,9 @@ app.get('/api/health', async (req, res) => {
     });
   }
 });
+
 // =================================================================
-//                 FIN DEL ENDPOINT DE ESTADO
+//          FIN DEL ENDPOINT DE ESTADO
 // =================================================================
 
 
