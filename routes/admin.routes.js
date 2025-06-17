@@ -166,13 +166,25 @@ router.get('/stats', async (req, res) => {
     // --- INICIO DE NUEVAS CONSULTAS ---
 
     // 5. Horas de mayor demanda
-    const horasPicoQuery = pool.query(
-      `SELECT TO_CHAR(hora_inicio, 'HH24:00') as hora, COUNT(*) as cantidad 
-       FROM "reservas" 
-       WHERE estado_reserva IN ('confirmada', 'pagado')
-       GROUP BY hora 
-       ORDER BY hora ASC`
-    );
+    const horasPicoQuerySQL = `
+      WITH horas_del_dia AS (
+        SELECT TO_CHAR(h, 'HH24:00') as hora
+        FROM generate_series(
+          '2000-01-01 00:00:00'::timestamp, -- Base date is arbitrary, only time matters
+          '2000-01-01 23:00:00'::timestamp,
+          '1 hour'
+        ) h
+      )
+      SELECT
+        h.hora,
+        COUNT(r.id) as cantidad_reservas -- Renamed to avoid conflict if 'cantidad' is a column in 'reservas'
+      FROM horas_del_dia h
+      LEFT JOIN "reservas" r ON TO_CHAR(r.hora_inicio, 'HH24:00') = h.hora
+                            AND r.estado_reserva IN ('confirmada', 'pagado')
+      GROUP BY h.hora
+      ORDER BY h.hora ASC;
+    `;
+    const horasPicoQuery = pool.query(horasPicoQuerySQL);
 
     // 6. Reservas por tipo de cliente (Socio vs. Público)
     const tipoClienteQuery = pool.query(
@@ -201,6 +213,15 @@ router.get('/stats', async (req, res) => {
       tipoClienteQuery, // <-- Nueva consulta
     ]);
 
+    // Process tipoClienteResult
+    let socioData = tipoClienteResult.rows.find(row => row.tipo === 'Socio');
+    let publicoData = tipoClienteResult.rows.find(row => row.tipo === 'Público General');
+
+    const processedTipoCliente = [
+      { tipo: 'Socio', cantidad: socioData ? parseInt(socioData.cantidad, 10) : 0 },
+      { tipo: 'Público General', cantidad: publicoData ? parseInt(publicoData.cantidad, 10) : 0 }
+    ];
+
     // Formateamos la respuesta final
     const stats = {
       kpis: {
@@ -212,10 +233,13 @@ router.get('/stats', async (req, res) => {
         ingresosUltimos6Meses: ingresosMesesResult.rows.map(row => ({
           mes: new Date(row.mes).toLocaleString('es-CL', { month: 'long', year: '2-digit' }),
           ingresos: parseFloat(row.ingresos)
-        }))
+        })),
     // --- INICIO DE NUEVOS DATOS ---
-        horasPico: horasPicoResult.rows.map(row => ({...row, cantidad: parseInt(row.cantidad, 10)})),
-        reservasPorTipoCliente: tipoClienteResult.rows.map(row => ({...row, cantidad: parseInt(row.cantidad, 10)})),
+        horasPico: horasPicoResult.rows.map(row => ({
+          hora: row.hora, // 'hora' comes directly from the query
+          cantidad: parseInt(row.cantidad_reservas, 10) // Use 'cantidad_reservas' here
+        })),
+        reservasPorTipoCliente: processedTipoCliente,
         // --- FIN DE NUEVOS DATOS ---
       }
     };
