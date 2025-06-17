@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs'); // Para encriptar y comparar contraseñas
 const jwt = require('jsonwebtoken'); // Para generar tokens
 const checkAuth = require('../middleware/check-auth.js');
 const checkIsAdmin = require('../middleware/check-is-admin.js');
+const rateLimit = require('express-rate-limit');
 
 // --- Endpoint para REGISTRAR un nuevo administrador ---
 // POST /api/auth/register
@@ -53,7 +54,17 @@ router.post('/register', checkAuth, checkIsAdmin, async (req, res) => {
 
 // --- Endpoint para INICIAR SESIÓN (LOGIN) de un administrador ---
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 10, // Límite de 10 peticiones por IP por ventana de 1 minuto
+  message: 'Demasiados intentos de login desde esta IP, por favor intente de nuevo después de un minuto.',
+  standardHeaders: true, // Devuelve la información del límite en los headers `RateLimit-*`
+  legacyHeaders: false, // Deshabilita los headers `X-RateLimit-*` (legacy)
+  // keyGenerator: (req) => req.ip // Opcional: por defecto usa req.ip, pero se puede personalizar
+});
+
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
