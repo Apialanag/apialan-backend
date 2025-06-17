@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'El espacio ya está reservado para el horario solicitado.' });
     }
     
-    const espacioResult = await pool.query('SELECT nombre, precio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
+    const espacioResult = await pool.query('SELECT nombre, precio_por_hora, precio_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
     if (espacioResult.rowCount === 0) {
       return res.status(404).json({ error: `Espacio con id ${espacio_id} no encontrado.` });
     }
@@ -91,11 +91,16 @@ router.post('/', async (req, res) => {
 
       if (horasUsadas + duracionReserva > 6) return res.status(403).json({ error: `Has superado tu límite de 6 horas semanales. Ya has usado ${horasUsadas} horas.` });
       
-      let precioHoraSocio;
-      if (espacio.nombre.includes('Grande')) precioHoraSocio = 5000;
-      else if (espacio.nombre.includes('Mediana')) precioHoraSocio = 4000;
-      else precioHoraSocio = 3000;
-      costoTotalCalculado = precioHoraSocio * duracionReserva;
+      // Ensure precio_socio_por_hora is available and numeric, otherwise fallback or error
+      if (typeof espacio.precio_socio_por_hora !== 'number') {
+        // This is a critical error because the business logic for socio pricing is missing.
+        // For now, we will log an error and fall back to the standard price to avoid breaking the flow,
+        // but this should be addressed by ensuring data integrity (i.e., precio_socio_por_hora is always set).
+        console.error(`Error: precio_socio_por_hora no está definido o no es un número para espacio_id: ${espacio_id}. Usando precio_por_hora estándar.`);
+        costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
+      } else {
+        costoTotalCalculado = parseFloat(espacio.precio_socio_por_hora) * duracionReserva;
+      }
     } else {
       costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
     }
