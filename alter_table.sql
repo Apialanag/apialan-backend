@@ -1,0 +1,1 @@
+ALTER TABLE "espacios" ADD COLUMN "precio_socio_por_hora" DECIMAL(10, 2);
