@@ -8,16 +8,14 @@ router.get('/', async (req, res) => {
       SELECT
         id,
         nombre,
+        capacidad,
+        comodidades,      -- As specified by user
         precio_por_hora,
-        precio_socio_por_hora,
-        capacidad,        // Assuming this exists from general context
-        descripcion,      // Assuming this exists
-        foto_url,         // Assuming this exists
-        esta_activo       // Assuming this exists
+        precio_socio_por_hora
       FROM
         "Espacios"
       ORDER BY
-        id ASC
+        id ASC;
     `;
     const todosLosEspacios = await pool.query(queryText);
     res.json(todosLosEspacios.rows);
