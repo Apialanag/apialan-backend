@@ -22,6 +22,11 @@ router.get('/', async (req, res) => {
     const queryParams = [];
     const whereClauses = [];
     let paramIndex = 1;
+
+    // Add the mandatory filter for reservation status
+    // No parameters needed for this part of the clause, so paramIndex is not incremented here.
+    whereClauses.push(`estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin')`);
+
     if (espacio_id) { whereClauses.push(`espacio_id = $${paramIndex++}`); queryParams.push(espacio_id); }
     if (fecha) { whereClauses.push(`fecha_reserva = $${paramIndex++}`); queryParams.push(fecha); }
     if (mes) {
