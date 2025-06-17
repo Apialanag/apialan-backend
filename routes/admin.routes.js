@@ -163,17 +163,40 @@ router.get('/stats', async (req, res) => {
     const reservasPorSalonQuery = pool.query(`SELECT e.nombre, COUNT(r.id) as cantidad FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id GROUP BY e.nombre`);
     const ingresosMesesQuery = pool.query(`SELECT TO_CHAR(DATE_TRUNC('month', fecha_reserva), 'YYYY-MM') as mes, SUM(costo_total) as ingresos FROM "reservas" WHERE fecha_reserva >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months' AND estado_reserva IN ('confirmada', 'pagado') GROUP BY DATE_TRUNC('month', fecha_reserva) ORDER BY mes ASC`);
     
+    // --- INICIO DE NUEVAS CONSULTAS ---
+
+    // 5. Horas de mayor demanda
+    const horasPicoQuery = pool.query(
+      `SELECT TO_CHAR(hora_inicio, 'HH24:00') as hora, COUNT(*) as cantidad 
+       FROM "reservas" 
+       GROUP BY hora 
+       ORDER BY hora ASC`
+    );
+
+    // 6. Reservas por tipo de cliente (Socio vs. Público)
+    const tipoClienteQuery = pool.query(
+      `SELECT 
+         CASE WHEN socio_id IS NOT NULL THEN 'Socio' ELSE 'Público General' END as tipo, 
+         COUNT(*) as cantidad 
+       FROM "reservas" 
+       GROUP BY tipo`
+    );
+
     // Ejecutamos todas las consultas en paralelo
     const [
       reservasHoyResult,
       ingresosMesResult,
       reservasPorSalonResult,
-      ingresosMesesResult
+      ingresosMesesResult,
+      horasPicoResult, // <-- Nuevo resultado
+      tipoClienteResult // <-- Nuevo resultado
     ] = await Promise.all([
       reservasHoyQuery,
       ingresosMesQuery,
       reservasPorSalonQuery,
-      ingresosMesesQuery
+      ingresosMesesQuery,
+      horasPicoQuery,   // <-- Nueva consulta
+      tipoClienteQuery, // <-- Nueva consulta
     ]);
 
     // Formateamos la respuesta final
@@ -188,6 +211,10 @@ router.get('/stats', async (req, res) => {
           mes: new Date(row.mes).toLocaleString('es-CL', { month: 'long', year: '2-digit' }),
           ingresos: parseFloat(row.ingresos)
         }))
+    // --- INICIO DE NUEVOS DATOS ---
+        horasPico: horasPicoResult.rows.map(row => ({...row, cantidad: parseInt(row.cantidad, 10)})),
+        reservasPorTipoCliente: tipoClienteResult.rows.map(row => ({...row, cantidad: parseInt(row.cantidad, 10)})),
+        // --- FIN DE NUEVOS DATOS ---
       }
     };
     
