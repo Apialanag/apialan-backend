@@ -1,0 +1,13 @@
+<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+  <h2>¡Hola, <%= reserva.cliente_nombre %>!</h2>
+  <p>Te informamos que tu reserva ha sido cancelada por un administrador.</p>
+  <hr>
+  <h3>Detalles de la Reserva Cancelada:</h3>
+  <ul>
+    <li><strong>ID de Reserva:</strong> <%= reserva.id %></li>
+    <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
+    <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+  </ul>
+  <p>Si tienes alguna duda sobre esta cancelación, por favor, ponte en contacto con nosotros.</p>
+  <p>Saludos,<br>El equipo de Apialan AG</p>
+</div>

@@ -1,0 +1,27 @@
+<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+  <h2 style="color: #4f46e5;">¡Hola, <%= reserva.cliente_nombre %>!</h2>
+  <p>Hemos recibido tu solicitud de reserva y hemos guardado tu cupo temporalmente. Para confirmar tu reserva de forma definitiva, por favor realiza el pago.</p>
+
+  <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Instrucciones de Pago</h3>
+  <p>Puedes realizar una transferencia bancaria por un total de <strong><%= formatCurrency(reserva.costo_total) %></strong> a la siguiente cuenta:</p>
+
+  <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>Banco:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Banco Estado</td></tr>
+    <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Tipo de Cuenta:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Corriente</td></tr>
+    <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>Número de Cuenta:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">55100101199</td></tr>
+    <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Nombre:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Asociación de prestadores de servicios, industriales y artesanos de Los Ángeles.</td></tr>
+    <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>RUT:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">70.382.000-K</td></tr>
+    <tr><td style="padding: 10px; border: 1px solid #ddd;"><strong>Email:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">cie@apialan.cl</td></tr>
+  </table>
+
+  <p style="margin-top: 20px;">Una vez realizado el pago, por favor envía el comprobante a nuestro correo <strong>cie@apialan.cl</strong> para confirmar tu reserva. Tienes un plazo de 24 horas para realizar el pago, de lo contrario, la solicitud podría ser cancelada.</p>
+  <hr>
+  <h3>Detalles de tu Solicitud:</h3>
+  <ul>
+    <li><strong>ID de Reserva:</strong> <%= reserva.id %></li>
+    <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
+    <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %></li>
+  </ul>
+  <p>Saludos,<br>El equipo de Apialan AG</p>
+</div>
