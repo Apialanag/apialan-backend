@@ -169,6 +169,7 @@ router.get('/stats', async (req, res) => {
     const horasPicoQuery = pool.query(
       `SELECT TO_CHAR(hora_inicio, 'HH24:00') as hora, COUNT(*) as cantidad 
        FROM "reservas" 
+       WHERE estado_reserva IN ('confirmada', 'pagado')
        GROUP BY hora 
        ORDER BY hora ASC`
     );
@@ -179,6 +180,7 @@ router.get('/stats', async (req, res) => {
          CASE WHEN socio_id IS NOT NULL THEN 'Socio' ELSE 'Público General' END as tipo, 
          COUNT(*) as cantidad 
        FROM "reservas" 
+       WHERE estado_reserva IN ('confirmada', 'pagado')
        GROUP BY tipo`
     );
 
