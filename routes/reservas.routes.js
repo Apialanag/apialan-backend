@@ -38,7 +38,10 @@ router.get('/', async (req, res) => {
     }
     if (whereClauses.length > 0) { queryText += ' WHERE ' + whereClauses.join(' AND '); }
     queryText += ' ORDER BY fecha_reserva ASC, hora_inicio ASC;';
+    console.log('Executing query for GET /reservas:', queryText);
+    console.log('Query parameters for GET /reservas:', queryParams);
     const resultado = await pool.query(queryText, queryParams);
+    console.log(`GET /reservas: Found ${resultado.rowCount} rows. First few results (if any):`, JSON.stringify(resultado.rows.slice(0, 5), null, 2)); // Log first 5 rows
     res.status(200).json(resultado.rows);
   } catch (err) {
     console.error("Error al obtener las reservas públicas:", err.message);
