@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
         precio_por_hora,
         precio_socio_por_hora
       FROM
-        "Espacios"
+        "espacios"
       ORDER BY
         id ASC;
     `;
