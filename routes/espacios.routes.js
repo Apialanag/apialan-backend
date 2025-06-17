@@ -4,7 +4,21 @@ const pool = require('../db');
 
 router.get('/', async (req, res) => {
   try {
-    const queryText = 'SELECT * FROM Espacios ORDER BY id ASC';
+    const queryText = `
+      SELECT
+        id,
+        nombre,
+        precio_por_hora,
+        precio_socio_por_hora,
+        capacidad,        // Assuming this exists from general context
+        descripcion,      // Assuming this exists
+        foto_url,         // Assuming this exists
+        esta_activo       // Assuming this exists
+      FROM
+        "Espacios"
+      ORDER BY
+        id ASC
+    `;
     const todosLosEspacios = await pool.query(queryText);
     res.json(todosLosEspacios.rows);
   } catch (err) {
