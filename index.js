@@ -1,22 +1,12 @@
 // Archivo: index.js de tu proyecto de backend
 
 require('dotenv').config();
+const pool = require('./db'); // Importar el pool de db.js
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg'); // Tu importación para la conexión a la BD
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// --- CONFIGURACIÓN DE LA CONEXIÓN A LA BASE DE DATOS ---
-// Tu excelente implementación de un pool de conexiones global. ¡Perfecto!
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-   rejectUnauthorized: false
-  }
-});
-
 
 // --- CONFIGURACIÓN DE CORS ---
 // Tu configuración de whitelist está perfecta.
