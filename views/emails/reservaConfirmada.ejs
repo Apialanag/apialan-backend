@@ -1,0 +1,14 @@
+<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+  <h2>¡Hola, <%= reserva.cliente_nombre %>!</h2>
+  <p>¡Tu reserva ha sido confirmada exitosamente! Hemos recibido tu pago y tu cupo está asegurado. ¡Te esperamos!</p>
+  <hr>
+  <h3>Detalles de tu Reserva:</h3>
+  <ul>
+    <li><strong>ID de Reserva:</strong> <%= reserva.id %></li>
+    <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
+    <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %></li>
+  </ul>
+  <p>Si necesitas hacer cambios o tienes alguna consulta, no dudes en contactarnos.</p>
+  <p>Saludos,<br>El equipo de Apialan AG</p>
+</div>
