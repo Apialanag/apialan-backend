@@ -10,16 +10,7 @@ const {
   enviarEmailCancelacionCliente, 
   enviarEmailCancelacionAdmin 
 } = require('../services/email.service');
-
-// --- Función para obtener el lunes de una fecha determinada ---
-const getMonday = (d) => {
-  d = new Date(d);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // ajusta para que el lunes sea el primer día
-  const monday = new Date(d.setDate(diff));
-  return monday.toISOString().split('T')[0]; // Devuelve en formato YYYY-MM-DD
-};
-
+const { validarHorasSocio, calcularCostoTotal } = require('../services/booking.service.js');
 
 // ----------------------------------------------------------------
 // RUTA PÚBLICA para consultar disponibilidad
@@ -73,37 +64,20 @@ router.post('/', async (req, res) => {
     }
     const espacio = espacioResult.rows[0];
     const duracionReserva = parseInt(hora_termino.split(':')[0]) - parseInt(hora_inicio.split(':')[0]);
-    let costoTotalCalculado;
+
     let socioId = null;
+    let isSocioBooking = false;
 
     if (rut_socio) {
-      const socioResult = await pool.query('SELECT * FROM "socios" WHERE rut = $1 AND estado = $2', [rut_socio, 'activo']);
-      if (socioResult.rowCount === 0) return res.status(403).json({ error: 'El RUT proporcionado no corresponde a un socio activo.' });
-      
-      socioId = socioResult.rows[0].id;
-
-      const inicioSemana = getMonday(fecha_reserva);
-      const finSemana = new Date(inicioSemana);
-      finSemana.setDate(new Date(inicioSemana).getDate() + 6);
-
-      const horasUsadasResult = await pool.query(`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (hora_termino - hora_inicio))/3600), 0) as total_horas FROM "reservas" WHERE socio_id = $1 AND fecha_reserva BETWEEN $2 AND $3`, [socioId, inicioSemana, finSemana.toISOString().split('T')[0]]);
-      const horasUsadas = parseFloat(horasUsadasResult.rows[0].total_horas);
-
-      if (horasUsadas + duracionReserva > 6) return res.status(403).json({ error: `Has superado tu límite de 6 horas semanales. Ya has usado ${horasUsadas} horas.` });
-      
-      // Ensure precio_socio_por_hora is available and numeric, otherwise fallback or error
-      if (typeof espacio.precio_socio_por_hora !== 'number') {
-        // This is a critical error because the business logic for socio pricing is missing.
-        // For now, we will log an error and fall back to the standard price to avoid breaking the flow,
-        // but this should be addressed by ensuring data integrity (i.e., precio_socio_por_hora is always set).
-        console.error(`Error: precio_socio_por_hora no está definido o no es un número para espacio_id: ${espacio_id}. Usando precio_por_hora estándar.`);
-        costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
-      } else {
-        costoTotalCalculado = parseFloat(espacio.precio_socio_por_hora) * duracionReserva;
+      const validacionSocio = await validarHorasSocio(rut_socio, fecha_reserva, duracionReserva);
+      if (!validacionSocio.success) {
+        return res.status(validacionSocio.status).json({ error: validacionSocio.error });
       }
-    } else {
-      costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
+      socioId = validacionSocio.socioId;
+      isSocioBooking = true;
     }
+
+    const costoTotalCalculado = calcularCostoTotal(espacio, duracionReserva, isSocioBooking);
 
     const nuevaReservaQuery = `INSERT INTO "reservas" (espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costo_total, notas_adicionales, socio_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;`;
     const values = [espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costoTotalCalculado, notas_adicionales, socioId];
