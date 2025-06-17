@@ -4,13 +4,15 @@ const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcryptjs'); // Para encriptar y comparar contraseñas
 const jwt = require('jsonwebtoken'); // Para generar tokens
+const checkAuth = require('../middleware/check-auth.js');
+const checkIsAdmin = require('../middleware/check-is-admin.js');
 
 // --- Endpoint para REGISTRAR un nuevo administrador ---
 // POST /api/auth/register
 // En una aplicación real, este endpoint estaría protegido o se usaría solo para la configuración inicial.
-router.post('/register', async (req, res) => {
+router.post('/register', checkAuth, checkIsAdmin, async (req, res) => {
   try {
-    const { nombre, email, password } = req.body;
+    const { nombre, email, password, rol } = req.body;
 
     // Validación simple
     if (!nombre || !email || !password) {
@@ -27,13 +29,15 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    const roleToAssign = rol || 'usuario'; // Default to 'usuario' if not provided by admin
+
     // Insertar el nuevo administrador en la base de datos
     const nuevoAdminQuery = `
-      INSERT INTO administradores (nombre, email, password_hash)
-      VALUES ($1, $2, $3)
+      INSERT INTO administradores (nombre, email, password_hash, rol)
+      VALUES ($1, $2, $3, $4)
       RETURNING id, nombre, email, rol, creado_en; -- Devolver el usuario sin el hash de la contraseña
     `;
-    const resultado = await pool.query(nuevoAdminQuery, [nombre, email, passwordHash]);
+    const resultado = await pool.query(nuevoAdminQuery, [nombre, email, passwordHash, roleToAssign]);
     
     res.status(201).json({
       mensaje: 'Administrador registrado exitosamente.',
