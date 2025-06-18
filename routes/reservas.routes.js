@@ -11,6 +11,7 @@ const {
   enviarEmailCancelacionAdmin 
 } = require('../services/email.service');
 const { validarHorasSocio, calcularCostoTotal } = require('../services/booking.service.js');
+const { parseISO, format, isValid } = require('date-fns');
 
 // ----------------------------------------------------------------
 // RUTA PÚBLICA para consultar disponibilidad
@@ -54,14 +55,31 @@ router.get('/', async (req, res) => {
 // ----------------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
-    const { espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, notas_adicionales, rut_socio } = req.body;
+    const { espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva: fecha_reserva_input, hora_inicio, hora_termino, notas_adicionales, rut_socio } = req.body;
 
-    if (!espacio_id || !cliente_nombre || !cliente_email || !fecha_reserva || !hora_inicio || !hora_termino) {
+    // Validate and format fecha_reserva_input
+    let fecha_reserva_cleaned;
+    try {
+      const parsedDate = parseISO(fecha_reserva_input);
+      if (!isValid(parsedDate)) {
+        return res.status(400).json({ error: 'Formato de fecha_reserva inválido o fecha no válida.' });
+      }
+      fecha_reserva_cleaned = format(parsedDate, 'yyyy-MM-dd');
+    } catch (parseError) {
+      console.error('Error parsing fecha_reserva_input:', parseError);
+      return res.status(400).json({ error: 'Error al procesar fecha_reserva.' });
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha_reserva_cleaned)) {
+        return res.status(400).json({ error: 'Formato final de fecha_reserva inválido después de procesar.' });
+    }
+
+    if (!espacio_id || !cliente_nombre || !cliente_email || !fecha_reserva_cleaned || !hora_inicio || !hora_termino) {
       return res.status(400).json({ error: 'Faltan campos obligatorios para la reserva.' });
     }
 
     const chequeoDisponibilidadQuery = `SELECT id FROM "reservas" WHERE espacio_id = $1 AND fecha_reserva = $2 AND (hora_inicio < $4 AND hora_termino > $3) AND estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin');`;
-    const resultadoChequeo = await pool.query(chequeoDisponibilidadQuery, [espacio_id, fecha_reserva, hora_inicio, hora_termino]);
+    const resultadoChequeo = await pool.query(chequeoDisponibilidadQuery, [espacio_id, fecha_reserva_cleaned, hora_inicio, hora_termino]);
     if (resultadoChequeo.rowCount > 0) {
       return res.status(409).json({ error: 'El espacio ya está reservado para el horario solicitado.' });
     }
@@ -77,7 +95,7 @@ router.post('/', async (req, res) => {
     let isSocioBooking = false;
 
     if (rut_socio) {
-      const validacionSocio = await validarHorasSocio(rut_socio, fecha_reserva, duracionReserva);
+      const validacionSocio = await validarHorasSocio(rut_socio, fecha_reserva_cleaned, duracionReserva);
       if (!validacionSocio.success) {
         return res.status(validacionSocio.status).json({ error: validacionSocio.error });
       }
@@ -88,7 +106,7 @@ router.post('/', async (req, res) => {
     const costoTotalCalculado = calcularCostoTotal(espacio, duracionReserva, isSocioBooking);
 
     const nuevaReservaQuery = `INSERT INTO "reservas" (espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costo_total, notas_adicionales, socio_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;`;
-    const values = [espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costoTotalCalculado, notas_adicionales, socioId];
+    const values = [espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva_cleaned, hora_inicio, hora_termino, costoTotalCalculado, notas_adicionales, socioId];
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
     
