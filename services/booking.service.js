@@ -23,14 +23,16 @@ const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva) => {
     finSemanaDate.setDate(finSemanaDate.getDate() + 6); // Monday to Sunday
     const finSemana = finSemanaDate.toISOString().split('T')[0];
 
+    // Consider only active reservations
+    // Added estado_reserva check
     const horasUsadasQuery = `
       SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (hora_termino - hora_inicio))/3600), 0) as total_horas
       FROM "reservas"
       WHERE socio_id = $1
         AND fecha_reserva >= $2
         AND fecha_reserva <= $3
-        AND estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin', 'rechazada'); // Consider only active reservations
-    `; // Added estado_reserva check
+        AND estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin', 'rechazada');
+    `;
     const horasUsadasResult = await pool.query(horasUsadasQuery, [socioId, inicioSemana, finSemana]);
     const horasUsadas = parseFloat(horasUsadasResult.rows[0].total_horas);
 
