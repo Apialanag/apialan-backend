@@ -48,16 +48,34 @@ const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva) => {
 
 const calcularCostoTotal = (espacio, duracionReserva, isSocioBooking) => {
   let costoTotalCalculado;
+
+  // Convertir los precios (que podrían ser strings si vienen de NUMERIC) a números
+  // Asegurarse de que las propiedades existan antes de intentar parseFloat
+  const precioSocioHoraStr = espacio.precio_socio_por_hora;
+  const precioHoraStr = espacio.precio_por_hora;
+
+  const precioSocioHora = (precioSocioHoraStr !== null && precioSocioHoraStr !== undefined) ? parseFloat(precioSocioHoraStr) : NaN;
+  const precioHora = (precioHoraStr !== null && precioHoraStr !== undefined) ? parseFloat(precioHoraStr) : NaN;
+
   if (isSocioBooking) {
-    if (typeof espacio.precio_socio_por_hora === 'number' && !isNaN(espacio.precio_socio_por_hora)) {
-      costoTotalCalculado = parseFloat(espacio.precio_socio_por_hora) * duracionReserva;
+    if (!isNaN(precioSocioHora)) { // Usar el precio de socio si es un número válido después de parseFloat
+      costoTotalCalculado = precioSocioHora * duracionReserva;
     } else {
-      // Log an error if socio price is expected but not available or invalid
-      console.error(`Alerta: precio_socio_por_hora no está definido, no es un número, o es NaN para el espacio con ID: ${espacio.id || 'desconocido'}. Usando precio_por_hora estándar para socio.`);
-      costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
+      console.error(`Alerta: El valor de espacio.precio_socio_por_hora ('${precioSocioHoraStr}') no pudo ser convertido a un número válido, o no está definido para el espacio con ID: ${espacio.id || 'desconocido'}. Usando precio_por_hora estándar para socio.`);
+      if (!isNaN(precioHora)) {
+        costoTotalCalculado = precioHora * duracionReserva;
+      } else {
+        console.error(`Error Crítico: espacio.precio_por_hora ('${precioHoraStr}') tampoco es un número válido para el espacio con ID: ${espacio.id || 'desconocido'}.`);
+        costoTotalCalculado = NaN; // O algún valor por defecto o manejo de error
+      }
     }
   } else {
-    costoTotalCalculado = parseFloat(espacio.precio_por_hora) * duracionReserva;
+    if (!isNaN(precioHora)) {
+      costoTotalCalculado = precioHora * duracionReserva;
+    } else {
+      console.error(`Error: espacio.precio_por_hora ('${precioHoraStr}') no es un número válido para el espacio con ID: ${espacio.id || 'desconocido'} en una reserva no-socio.`);
+      costoTotalCalculado = NaN; // O algún valor por defecto o manejo de error
+    }
   }
   // Ensure costoTotalCalculado is a valid number, default to 0 if not (or handle as error)
   return isNaN(costoTotalCalculado) ? 0 : costoTotalCalculado;
