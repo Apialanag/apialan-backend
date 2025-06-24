@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'El espacio ya está reservado para el horario solicitado.' });
     }
     
-    const espacioResult = await pool.query('SELECT id, nombre, precio_por_hora, precio_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
+    const espacioResult = await pool.query('SELECT id, nombre, precio_neto_por_hora, precio_neto_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
     if (espacioResult.rowCount === 0) {
       return res.status(404).json({ error: `Espacio con id ${espacio_id} no encontrado.` });
     }
@@ -92,7 +92,7 @@ router.post('/', async (req, res) => {
     const duracionReserva = parseInt(hora_termino.split(':')[0]) - parseInt(hora_inicio.split(':')[0]);
 
     let socioId = null;
-    let isSocioBooking = false;
+    let precioNetoAplicable = espacio.precio_neto_por_hora;
 
     if (rut_socio) {
       const validacionSocio = await validarHorasSocio(rut_socio, fecha_reserva_cleaned, duracionReserva);
@@ -100,13 +100,36 @@ router.post('/', async (req, res) => {
         return res.status(validacionSocio.status).json({ error: validacionSocio.error });
       }
       socioId = validacionSocio.socioId;
-      isSocioBooking = true;
+      // Si es socio y el precio de socio está definido, usarlo.
+      if (espacio.precio_neto_socio_por_hora !== null && espacio.precio_neto_socio_por_hora !== undefined) {
+        precioNetoAplicable = espacio.precio_neto_socio_por_hora;
+      }
     }
 
-    const costoTotalCalculado = calcularCostoTotal(espacio, duracionReserva, isSocioBooking);
+    const costos = calcularCostoTotal(precioNetoAplicable, duracionReserva);
 
-    const nuevaReservaQuery = `INSERT INTO "reservas" (espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costo_total, notas_adicionales, socio_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;`;
-    const values = [espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva_cleaned, hora_inicio, hora_termino, costoTotalCalculado, notas_adicionales, socioId];
+    // Verificar si el cálculo de costos falló (e.g., precioNetoAplicable no era válido)
+    if (isNaN(costos.total)) {
+        console.error("Error al calcular el costo total, resultado NaN. Verifique los precios del espacio y la lógica de cálculo.");
+        return res.status(500).json({ error: 'Error interno al calcular el costo de la reserva.' });
+    }
+
+    // costo_total se renombra a costo_total_historico en la tabla
+    // Se añaden costo_neto_historico y costo_iva_historico
+    const nuevaReservaQuery = `
+      INSERT INTO "reservas" (
+        espacio_id, cliente_nombre, cliente_email, cliente_telefono,
+        fecha_reserva, hora_inicio, hora_termino,
+        costo_neto_historico, costo_iva_historico, costo_total_historico,
+        notas_adicionales, socio_id, estado_reserva, estado_pago
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pendiente', 'pendiente')
+      RETURNING *;`;
+    const values = [
+        espacio_id, cliente_nombre, cliente_email, cliente_telefono,
+        fecha_reserva_cleaned, hora_inicio, hora_termino,
+        costos.neto, costos.iva, costos.total,
+        notas_adicionales, socioId
+    ];
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
     
