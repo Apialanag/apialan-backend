@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'El espacio ya está reservado para el horario solicitado.' });
     }
     
-    const espacioResult = await pool.query('SELECT nombre, precio_por_hora, precio_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
+    const espacioResult = await pool.query('SELECT id, nombre, precio_por_hora, precio_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
     if (espacioResult.rowCount === 0) {
       return res.status(404).json({ error: `Espacio con id ${espacio_id} no encontrado.` });
     }
