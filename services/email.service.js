@@ -139,4 +139,48 @@ module.exports = {
   enviarEmailReservaConfirmada,
   enviarEmailCancelacionCliente,
   enviarEmailCancelacionAdmin,
+  enviarEmailNotificacionAdminNuevaSolicitud, // Exportar la nueva función
+};
+
+// --- FUNCIÓN 5: EMAIL DE NOTIFICACIÓN AL ADMINISTRADOR SOBRE NUEVA SOLICITUD ---
+/**
+ * Envía un email de notificación al administrador sobre una nueva solicitud de reserva.
+ * @param {object} reserva - El objeto de la reserva creada.
+ * @param {string} adminEmail - La dirección de correo del administrador.
+ */
+const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) => {
+  try {
+    // Podríamos crear una plantilla EJS específica para este correo si el formato es complejo,
+    // o construir un HTML simple directamente aquí. Por simplicidad, usaremos un texto/html básico.
+    const detallesReserva = `
+      <p>Se ha recibido una nueva solicitud de reserva con los siguientes detalles:</p>
+      <ul>
+        <li><strong>ID Reserva:</strong> ${reserva.id}</li>
+        <li><strong>Espacio:</strong> ${reserva.nombre_espacio || 'No especificado'}</li>
+        <li><strong>Cliente:</strong> ${reserva.cliente_nombre}</li>
+        <li><strong>Email Cliente:</strong> ${reserva.cliente_email}</li>
+        <li><strong>Teléfono Cliente:</strong> ${reserva.cliente_telefono || 'No especificado'}</li>
+        <li><strong>Fecha:</strong> ${formatDate(reserva.fecha_reserva)}</li>
+        <li><strong>Hora Inicio:</strong> ${formatTime(reserva.hora_inicio)}</li>
+        <li><strong>Hora Término:</strong> ${formatTime(reserva.hora_termino)}</li>
+        <li><strong>Costo Total:</strong> ${formatCurrency(reserva.costo_total)}</li>
+        <li><strong>Notas Adicionales:</strong> ${reserva.notas_adicionales || 'Ninguna'}</li>
+        <li><strong>Socio ID:</strong> ${reserva.socio_id || 'No aplica'}</li>
+      </ul>
+      <p>Por favor, revisa el panel de administración para más detalles o para confirmar la reserva una vez recibido el pago.</p>
+    `;
+
+    const mailOptions = {
+      from: `"Notificaciones Apialan" <${process.env.EMAIL_USER}>`,
+      to: adminEmail, // Enviar al correo del administrador
+      subject: `📢 Nueva Solicitud de Reserva Recibida - ID: ${reserva.id}`,
+      html: detallesReserva,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email de notificación de nueva solicitud enviado a ${adminEmail} para reserva ID: ${reserva.id}`);
+  } catch (error) {
+    console.error(`Error al enviar email de notificación al admin para reserva ${reserva.id}:`, error);
+    // Considerar no lanzar el error para no afectar el flujo principal si solo falla el correo al admin
+  }
 };
