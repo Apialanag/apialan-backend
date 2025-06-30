@@ -11,7 +11,8 @@ router.get('/', async (req, res) => {
         capacidad,
         comodidades,      -- As specified by user
         precio_por_hora,
-        precio_socio_por_hora
+        precio_socio_por_hora,
+        fotos
       FROM
         "espacios"
       ORDER BY
