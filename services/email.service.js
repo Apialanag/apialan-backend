@@ -139,7 +139,7 @@ module.exports = {
   enviarEmailReservaConfirmada,
   enviarEmailCancelacionCliente,
   enviarEmailCancelacionAdmin,
-  enviarEmailNotificacionAdminNuevaSolicitud, // Exportar la nueva función
+  // enviarEmailNotificacionAdminNuevaSolicitud, // Se moverá al final
 };
 
 // --- FUNCIÓN 5: EMAIL DE NOTIFICACIÓN AL ADMINISTRADOR SOBRE NUEVA SOLICITUD ---
@@ -183,4 +183,13 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) =
     console.error(`Error al enviar email de notificación al admin para reserva ${reserva.id}:`, error);
     // Considerar no lanzar el error para no afectar el flujo principal si solo falla el correo al admin
   }
+};
+
+// Mover el bloque module.exports al final del archivo
+module.exports = {
+  enviarEmailSolicitudRecibida,
+  enviarEmailReservaConfirmada,
+  enviarEmailCancelacionCliente,
+  enviarEmailCancelacionAdmin,
+  enviarEmailNotificacionAdminNuevaSolicitud,
 };
