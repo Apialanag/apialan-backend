@@ -8,7 +8,8 @@ const {
   enviarEmailSolicitudRecibida,
   enviarEmailReservaConfirmada,
   enviarEmailCancelacionCliente, 
-  enviarEmailCancelacionAdmin 
+  enviarEmailCancelacionAdmin,
+  enviarEmailNotificacionAdminNuevaSolicitud // Importar la nueva función
 } = require('../services/email.service');
 const { validarHorasSocio, calcularCostoTotal } = require('../services/booking.service.js');
 const { parseISO, format, isValid } = require('date-fns');
@@ -112,6 +113,15 @@ router.post('/', async (req, res) => {
     
     reservaCreada.nombre_espacio = espacio.nombre;
     await enviarEmailSolicitudRecibida(reservaCreada);
+
+    // Enviar notificación al administrador
+    const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS; // Asegúrate de tener esta variable de entorno
+    if (adminEmail) {
+      await enviarEmailNotificacionAdminNuevaSolicitud(reservaCreada, adminEmail);
+    } else {
+      console.warn('ADMIN_EMAIL_NOTIFICATIONS no está configurado. No se enviará correo al administrador.');
+    }
+
     res.status(201).json({ mensaje: 'Solicitud de reserva recibida. Por favor, realiza el pago para confirmar.', reserva: reservaCreada });
 
   } catch (err) {
