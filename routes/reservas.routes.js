@@ -11,7 +11,7 @@ const {
   enviarEmailCancelacionAdmin,
   enviarEmailNotificacionAdminNuevaSolicitud // Importar la nueva función
 } = require('../services/email.service');
-const { validarHorasSocio, calcularCostoTotal } = require('../services/booking.service.js');
+const { validarHorasSocio, calcularDesgloseCostos } = require('../services/booking.service.js'); // Actualizado a calcularDesgloseCostos
 const { parseISO, format, isValid } = require('date-fns');
 
 // ----------------------------------------------------------------
@@ -85,7 +85,8 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'El espacio ya está reservado para el horario solicitado.' });
     }
     
-    const espacioResult = await pool.query('SELECT id, nombre, precio_por_hora, precio_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
+    // Actualizar para seleccionar los nuevos nombres de columna de precios netos
+    const espacioResult = await pool.query('SELECT id, nombre, precio_neto_por_hora, precio_neto_socio_por_hora FROM "espacios" WHERE id = $1', [espacio_id]);
     if (espacioResult.rowCount === 0) {
       return res.status(404).json({ error: `Espacio con id ${espacio_id} no encontrado.` });
     }
@@ -104,14 +105,43 @@ router.post('/', async (req, res) => {
       isSocioBooking = true;
     }
 
-    const costoTotalCalculado = calcularCostoTotal(espacio, duracionReserva, isSocioBooking);
+    // Usar la nueva función calcularDesgloseCostos
+    const desgloseCostos = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking);
 
-    const nuevaReservaQuery = `INSERT INTO "reservas" (espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva, hora_inicio, hora_termino, costo_total, notas_adicionales, socio_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;`;
-    const values = [espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva_cleaned, hora_inicio, hora_termino, costoTotalCalculado, notas_adicionales, socioId];
+    if (desgloseCostos.error) {
+      // Si hubo un error en el cálculo de costos (ej. precio base no válido), retornar un error.
+      // Esto es importante porque los precios NaN no deberían guardarse.
+      return res.status(500).json({ error: `Error al calcular el costo de la reserva: ${desgloseCostos.error}` });
+    }
+
+    // Actualizar la query para insertar los nuevos campos de desglose de costos
+    const nuevaReservaQuery = `
+      INSERT INTO "reservas" (
+        espacio_id, cliente_nombre, cliente_email, cliente_telefono,
+        fecha_reserva, hora_inicio, hora_termino,
+        costo_neto_historico, costo_iva_historico, costo_total_historico,
+        notas_adicionales, socio_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *;
+    `;
+    const values = [
+      espacio_id, cliente_nombre, cliente_email, cliente_telefono,
+      fecha_reserva_cleaned, hora_inicio, hora_termino,
+      desgloseCostos.neto, desgloseCostos.iva, desgloseCostos.total, // Usar los valores del desglose
+      notas_adicionales, socioId
+    ];
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
     
+    // Añadir el desglose de costos a reservaCreada para el email, si es necesario
+    // (la plantilla de email podría necesitar acceso a estos valores también)
     reservaCreada.nombre_espacio = espacio.nombre;
+    reservaCreada.costo_neto_historico = desgloseCostos.neto;
+    reservaCreada.costo_iva_historico = desgloseCostos.iva;
+    // reservaCreada.costo_total_historico ya viene de la BD, pero podría ser útil tenerlo directamente del cálculo
+    // para el email si la plantilla lo usa antes de que se lea de la BD en otro contexto.
+    // Sin embargo, el SELECT RETURNING * ya devuelve costo_total_historico.
+
     await enviarEmailSolicitudRecibida(reservaCreada);
 
     // Enviar notificación al administrador
