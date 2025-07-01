@@ -157,11 +157,13 @@ router.get('/stats', async (req, res) => {
   try {
     // Consultas para los KPIs
     const reservasHoyQuery = pool.query(`SELECT COUNT(*) FROM "reservas" WHERE fecha_reserva = CURRENT_DATE`);
-    const ingresosMesQuery = pool.query(`SELECT SUM(costo_total) as total FROM "reservas" WHERE estado_reserva IN ('confirmada', 'pagado') AND DATE_TRUNC('month', fecha_reserva) = DATE_TRUNC('month', CURRENT_DATE)`);
+    // Actualizado a costo_total_historico
+    const ingresosMesQuery = pool.query(`SELECT SUM(costo_total_historico) as total FROM "reservas" WHERE estado_reserva IN ('confirmada', 'pagado') AND DATE_TRUNC('month', fecha_reserva) = DATE_TRUNC('month', CURRENT_DATE)`);
 
     // Consultas para los Gráficos
     const reservasPorSalonQuery = pool.query(`SELECT e.nombre, COUNT(r.id) as cantidad FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id GROUP BY e.nombre`);
-    const ingresosMesesQuery = pool.query(`SELECT TO_CHAR(DATE_TRUNC('month', fecha_reserva), 'YYYY-MM') as mes, SUM(costo_total) as ingresos FROM "reservas" WHERE fecha_reserva >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months' AND estado_reserva IN ('confirmada', 'pagado') GROUP BY DATE_TRUNC('month', fecha_reserva) ORDER BY mes ASC`);
+    // Actualizado a costo_total_historico
+    const ingresosMesesQuery = pool.query(`SELECT TO_CHAR(DATE_TRUNC('month', fecha_reserva), 'YYYY-MM') as mes, SUM(costo_total_historico) as ingresos FROM "reservas" WHERE fecha_reserva >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months' AND estado_reserva IN ('confirmada', 'pagado') GROUP BY DATE_TRUNC('month', fecha_reserva) ORDER BY mes ASC`);
     
     // --- INICIO DE NUEVAS CONSULTAS ---
 
