@@ -169,6 +169,19 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) =
         <li><strong>Notas Adicionales:</strong> ${reserva.notas_adicionales || 'Ninguna'}</li>
         <li><strong>Socio ID:</strong> ${reserva.socio_id || 'No aplica'}</li>
       </ul>
+      ${ reserva.tipo_documento ? `
+      <hr>
+      <h3>Información de Facturación:</h3>
+      <ul>
+        <li><strong>Tipo Documento:</strong> ${reserva.tipo_documento}</li>
+        ${ reserva.tipo_documento === 'factura' ? `
+        <li><strong>RUT Facturación:</strong> ${reserva.facturacion_rut || 'No especificado'}</li>
+        <li><strong>Razón Social:</strong> ${reserva.facturacion_razon_social || 'No especificado'}</li>
+        <li><strong>Dirección Facturación:</strong> ${reserva.facturacion_direccion || 'No especificado'}</li>
+        <li><strong>Giro:</strong> ${reserva.facturacion_giro || 'No especificado'}</li>
+        ` : '' }
+      </ul>
+      ` : '' }
       <p>Por favor, revisa el panel de administración para más detalles o para confirmar la reserva una vez recibido el pago.</p>
     `;
 
