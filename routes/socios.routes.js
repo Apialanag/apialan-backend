@@ -24,7 +24,7 @@ router.post('/validar', async (req, res) => {
     //    - REPLACE(..., '-', '') quita los guiones del resultado anterior.
     //    - LOWER(...) convierte todo a minúsculas.
     const socioResult = await pool.query(
-      `SELECT id, nombre_completo, rut, estado 
+      `SELECT id, nombre_completo, rut, estado, email
        FROM socios 
        WHERE LOWER(REPLACE(REPLACE(rut, '.', ''), '-', '')) = $1 AND estado = 'activo'`,
       [rutLimpioUsuario] // Comparamos contra el RUT limpio del usuario
@@ -39,6 +39,7 @@ router.post('/validar', async (req, res) => {
       id: socio.id,
       nombre_completo: socio.nombre_completo,
       rut: socio.rut, // Devolvemos el RUT original formateado
+      email: socio.email, // Devolvemos el email del socio
     });
 
   } catch (error) {
