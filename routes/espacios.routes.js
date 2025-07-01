@@ -10,8 +10,8 @@ router.get('/', async (req, res) => {
         nombre,
         capacidad,
         comodidades,      -- As specified by user
-        precio_por_hora,
-        precio_socio_por_hora,
+        precio_neto_por_hora,     -- Actualizado
+        precio_neto_socio_por_hora, -- Actualizado
         fotos
       FROM
         "espacios"
