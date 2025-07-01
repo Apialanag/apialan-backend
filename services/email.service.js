@@ -163,7 +163,9 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) =
         <li><strong>Fecha:</strong> ${formatDate(reserva.fecha_reserva)}</li>
         <li><strong>Hora Inicio:</strong> ${formatTime(reserva.hora_inicio)}</li>
         <li><strong>Hora Término:</strong> ${formatTime(reserva.hora_termino)}</li>
-        <li><strong>Costo Total:</strong> ${formatCurrency(reserva.costo_total)}</li>
+        <li><strong>Neto:</strong> ${formatCurrency(reserva.costo_neto_historico)}</li>
+        <li><strong>IVA (19%):</strong> ${formatCurrency(reserva.costo_iva_historico)}</li>
+        <li><strong>Total:</strong> ${formatCurrency(reserva.costo_total_historico)}</li>
         <li><strong>Notas Adicionales:</strong> ${reserva.notas_adicionales || 'Ninguna'}</li>
         <li><strong>Socio ID:</strong> ${reserva.socio_id || 'No aplica'}</li>
       </ul>
@@ -173,7 +175,7 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) =
     const mailOptions = {
       from: `"Notificaciones Apialan" <${process.env.EMAIL_USER}>`,
       to: adminEmail, // Enviar al correo del administrador
-      subject: `📢 Nueva Solicitud de Reserva Recibida - ID: ${reserva.id}`,
+      subject: `Nueva Solicitud de Reserva Recibida - ID: ${reserva.id}`, // Emoji eliminado por si causa problemas
       html: detallesReserva,
     };
 
