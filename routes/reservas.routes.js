@@ -56,7 +56,14 @@ router.get('/', async (req, res) => {
 // ----------------------------------------------------------------
 router.post('/', async (req, res) => {
   try {
-    const { espacio_id, cliente_nombre, cliente_email, cliente_telefono, fecha_reserva: fecha_reserva_input, hora_inicio, hora_termino, notas_adicionales, rut_socio } = req.body;
+    const {
+      espacio_id, cliente_nombre, cliente_email, cliente_telefono,
+      fecha_reserva: fecha_reserva_input, hora_inicio, hora_termino,
+      notas_adicionales, rut_socio,
+      // Nuevos campos de facturación
+      tipo_documento, facturacion_rut, facturacion_razon_social,
+      facturacion_direccion, facturacion_giro
+    } = req.body;
 
     // Validate and format fecha_reserva_input
     let fecha_reserva_cleaned;
@@ -120,15 +127,26 @@ router.post('/', async (req, res) => {
         espacio_id, cliente_nombre, cliente_email, cliente_telefono,
         fecha_reserva, hora_inicio, hora_termino,
         costo_neto_historico, costo_iva_historico, costo_total_historico,
-        notas_adicionales, socio_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        notas_adicionales, socio_id,
+        -- Campos de facturación
+        tipo_documento, facturacion_rut, facturacion_razon_social,
+        facturacion_direccion, facturacion_giro
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *;
     `;
     const values = [
       espacio_id, cliente_nombre, cliente_email, cliente_telefono,
       fecha_reserva_cleaned, hora_inicio, hora_termino,
-      desgloseCostos.neto, desgloseCostos.iva, desgloseCostos.total, // Usar los valores del desglose
-      notas_adicionales, socioId
+      desgloseCostos.neto, desgloseCostos.iva, desgloseCostos.total,
+      notas_adicionales, socioId,
+      // Valores para los nuevos campos de facturación
+      // Si tipo_documento es 'boleta' o no se proporciona, los campos de factura deben ser null.
+      // El frontend debería enviar null o no enviar los campos de factura si no son necesarios.
+      tipo_documento,
+      tipo_documento === 'factura' ? facturacion_rut : null,
+      tipo_documento === 'factura' ? facturacion_razon_social : null,
+      tipo_documento === 'factura' ? facturacion_direccion : null,
+      tipo_documento === 'factura' ? facturacion_giro : null
     ];
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
