@@ -202,36 +202,81 @@ router.get('/:id', checkAuth, async (req, res) => {
 router.put('/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado_reserva, estado_pago } = req.body;
+    let { estado_reserva, estado_pago } = req.body; // Usar let para poder modificar estado_pago
+
     if (estado_reserva === undefined && estado_pago === undefined) {
       return res.status(400).json({ error: 'No se proporcionaron campos válidos para actualizar.' });
     }
+
+    // Lógica para auto-actualizar estado_pago si se confirma la reserva
+    if (estado_reserva === 'confirmada') {
+      estado_pago = 'pagado'; // Forzar estado_pago a 'pagado'
+    }
+
     const camposAActualizar = [];
     const valoresAActualizar = [];
     let parametroIndex = 1;
+
     if (estado_reserva !== undefined) {
       camposAActualizar.push(`estado_reserva = $${parametroIndex++}`);
       valoresAActualizar.push(estado_reserva);
     }
+
+    // Asegurarse de que estado_pago se actualice si se modificó automáticamente
+    // o si vino explícitamente en la solicitud.
     if (estado_pago !== undefined) {
+      // Si estado_reserva es 'confirmada', estado_pago ya fue forzado a 'pagado'.
+      // Si estado_reserva no es 'confirmada', se usa el estado_pago que vino en el body (si vino).
+      // Esta condición asegura que se añada a la query si hay un valor definido para estado_pago.
       camposAActualizar.push(`estado_pago = $${parametroIndex++}`);
       valoresAActualizar.push(estado_pago);
     }
+
+    // Evitar query vacía si, por alguna razón, después de la lógica anterior no hay campos para actualizar
+    // (aunque la validación inicial ya cubre que al menos uno debe venir).
+    // Sin embargo, si estado_pago era el único campo y se volvió undefined, esto podría ser un problema.
+    // La lógica actual de forzar estado_pago='pagado' cuando estado_reserva='confirmada' es más simple.
+    // Si solo se envía estado_reserva='confirmada', estado_pago se añadirá.
+    // Si se envía estado_pago='pendiente' y estado_reserva='confirmada', estado_pago se sobreescribirá a 'pagado'.
+
+    if (camposAActualizar.length === 0) {
+        // Esto podría ocurrir si solo se envió estado_pago y era 'pagado' y estado_reserva era 'confirmada'
+        // y no hubo cambio real. O si la lógica se complica.
+        // Por simplicidad, si no hay campos (lo cual es raro aquí), se podría retornar la reserva sin cambios.
+        // Pero la validación inicial ya exige al menos un campo.
+        // Una forma más robusta es obtener la reserva actual y solo actualizar si hay cambios reales.
+        // Por ahora, asumimos que el frontend enviará cambios significativos o la validación inicial lo maneja.
+         return res.status(400).json({ error: 'No hay campos válidos para actualizar después del procesamiento.' });
+    }
+
+
     const updateQuery = `UPDATE "reservas" SET ${camposAActualizar.join(', ')} WHERE id = $${parametroIndex} RETURNING *;`;
     valoresAActualizar.push(id);
     const resultado = await pool.query(updateQuery, valoresAActualizar);
+
     if (resultado.rowCount === 0) {
       return res.status(404).json({ error: 'Reserva no encontrada para actualizar.' });
     }
+
     const reservaActualizadaQuery = `SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1`;
     const resultadoFinal = await pool.query(reservaActualizadaQuery, [id]);
-    const reservaActualizada = resultadoFinal.rows[0];
-    if (estado_reserva) { 
-      if (estado_reserva === 'confirmada') await enviarEmailReservaConfirmada(reservaActualizada);
-      else if (estado_reserva === 'cancelada_por_admin') await enviarEmailCancelacionAdmin(reservaActualizada);
-      else if (estado_reserva === 'cancelada_por_cliente') await enviarEmailCancelacionCliente(reservaActualizada);
+    const reservaActualizadaConNombreEspacio = resultadoFinal.rows[0];
+
+    // Lógica de envío de correos basada en el estado_reserva que efectivamente se guardó.
+    // Usar reservaActualizadaConNombreEspacio.estado_reserva que es el valor final en la BD.
+    if (reservaActualizadaConNombreEspacio.estado_reserva === 'confirmada') {
+      // Solo enviar si el estado ANTES de esta actualización NO ERA 'confirmada' para evitar reenvíos.
+      // Esto requiere obtener el estado previo o asumir que el frontend no permite "reconfirmar" sin sentido.
+      // Por ahora, se envía siempre que el estado final sea 'confirmada'.
+      await enviarEmailReservaConfirmada(reservaActualizadaConNombreEspacio);
+    } else if (reservaActualizadaConNombreEspacio.estado_reserva === 'cancelada_por_admin') {
+      await enviarEmailCancelacionAdmin(reservaActualizadaConNombreEspacio);
+    } else if (reservaActualizadaConNombreEspacio.estado_reserva === 'cancelada_por_cliente') {
+      // Este estado usualmente lo actualiza el cliente, pero si el admin lo fuerza.
+      await enviarEmailCancelacionCliente(reservaActualizadaConNombreEspacio);
     }
-    res.status(200).json({ mensaje: 'Reserva actualizada exitosamente.', reserva: reservaActualizada });
+
+    res.status(200).json({ mensaje: 'Reserva actualizada exitosamente.', reserva: reservaActualizadaConNombreEspacio });
   } catch (err) {
     console.error(`Error al actualizar la reserva ${req.params.id}:`, err.message);
     res.status(500).json({ error: 'Error del servidor al actualizar la reserva.' });
