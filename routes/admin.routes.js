@@ -156,7 +156,11 @@ router.delete('/socios/:id', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     // Consultas para los KPIs
-    const reservasHoyQuery = pool.query(`SELECT COUNT(*) FROM "reservas" WHERE fecha_reserva = CURRENT_DATE`);
+    const reservasHoyQuery = pool.query(`
+      SELECT COUNT(*) FROM "reservas"
+      WHERE fecha_reserva = CURRENT_DATE
+      AND estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin')
+    `);
     // Actualizado a costo_total_historico
     const ingresosMesQuery = pool.query(`SELECT SUM(costo_total_historico) as total FROM "reservas" WHERE estado_reserva IN ('confirmada', 'pagado') AND DATE_TRUNC('month', fecha_reserva) = DATE_TRUNC('month', CURRENT_DATE)`);
 
