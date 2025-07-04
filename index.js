@@ -11,15 +11,23 @@ const PORT = process.env.PORT || 3000;
 // --- CONFIGURACIÓN DE CORS ---
 // Tu configuración de whitelist está perfecta.
 const whitelist = [
-  'https://reservas-oficinas-apialan.vercel.app',
-  'http://localhost:5173'
+  'https://reservas-oficinas-apialan.vercel.app', // Frontend de clientes
+  'http://localhost:5173',                         // Desarrollo local frontend de clientes
+  // Añade aquí las URLs de tu panel de administración:
+  'https://tu-panel-admin.vercel.app',             // EJEMPLO: URL de producción de tu panel de admin
+  'http://localhost:5174'                          // EJEMPLO: URL de desarrollo local de tu panel de admin
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
+    // Log para depurar el valor de origin que llega al backend
+    console.log('CORS check: Request origin:', origin);
+    console.log('CORS whitelist:', whitelist);
     if (whitelist.includes(origin) || !origin) {
+      console.log('CORS check: Origin PERMITIDO.');
       callback(null, true);
     } else {
+      console.log('CORS check: Origin DENEGADO.');
       callback(new Error('No permitido por la política de CORS'));
     }
   }
