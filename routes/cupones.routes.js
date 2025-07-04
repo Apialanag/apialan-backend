@@ -184,6 +184,7 @@ router.post('/', async (req, res) => {
 
 // GET /cupones - Leer todos los cupones (con paginación y filtro opcional por activo)
 router.get('/', async (req, res) => {
+  console.log('ADMIN DEBUG: Solicitud recibida en GET /cupones'); // Log de depuración
   const { page = 1, limit = 10, activo } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
