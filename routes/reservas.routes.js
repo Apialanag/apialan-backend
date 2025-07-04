@@ -114,7 +114,7 @@ router.post('/', async (req, res) => {
       isSocioBooking = true;
     }
 
-    }
+    // SE ELIMINÓ UNA LLAVE DE CIERRE '}' EXTRA AQUÍ
 
     let montoDescuentoReal = 0;
     let idCuponParaGuardar = cupon_aplicado_id; // Usar el id que viene del frontend si se valida
