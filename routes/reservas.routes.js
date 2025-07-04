@@ -62,7 +62,9 @@ router.post('/', async (req, res) => {
       notas_adicionales, rut_socio,
       // Nuevos campos de facturación
       tipo_documento, facturacion_rut, facturacion_razon_social,
-      facturacion_direccion, facturacion_giro
+      facturacion_direccion, facturacion_giro,
+      // Campos del cupón
+      cupon_aplicado_id, monto_descuento_aplicado
     } = req.body;
 
     // Validate and format fecha_reserva_input
@@ -112,16 +114,58 @@ router.post('/', async (req, res) => {
       isSocioBooking = true;
     }
 
-    // Usar la nueva función calcularDesgloseCostos
-    const desgloseCostos = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking);
-
-    if (desgloseCostos.error) {
-      // Si hubo un error en el cálculo de costos (ej. precio base no válido), retornar un error.
-      // Esto es importante porque los precios NaN no deberían guardarse.
-      return res.status(500).json({ error: `Error al calcular el costo de la reserva: ${desgloseCostos.error}` });
     }
 
-    // Actualizar la query para insertar los nuevos campos de desglose de costos
+    let montoDescuentoReal = 0;
+    let idCuponParaGuardar = cupon_aplicado_id; // Usar el id que viene del frontend si se valida
+
+    // Calcular el costo neto base SIN descuento de cupón primero
+    const costoNetoBaseReserva = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0).costoNetoBase;
+    if (isNaN(costoNetoBaseReserva)) {
+        return res.status(500).json({ error: `Error al calcular el costo base de la reserva.` });
+    }
+
+    if (idCuponParaGuardar) { // Si se envió un ID de cupón
+      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1 AND activo = TRUE', [idCuponParaGuardar]);
+      if (cuponResult.rows.length > 0) {
+        const cupon = cuponResult.rows[0];
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaDesde = cupon.fecha_validez_desde ? new Date(cupon.fecha_validez_desde) : null;
+        const fechaHasta = cupon.fecha_validez_hasta ? new Date(cupon.fecha_validez_hasta) : null;
+
+        let cuponEsValidoAhora = true;
+        if (fechaDesde && hoy < fechaDesde) cuponEsValidoAhora = false;
+        if (fechaHasta && hoy > fechaHasta) cuponEsValidoAhora = false;
+        if (cupon.usos_maximos !== null && cupon.usos_actuales >= cupon.usos_maximos) cuponEsValidoAhora = false;
+        if (costoNetoBaseReserva < parseFloat(cupon.monto_minimo_reserva_neto)) cuponEsValidoAhora = false;
+
+        if (cuponEsValidoAhora) {
+          if (cupon.tipo_descuento === 'porcentaje') {
+            montoDescuentoReal = (costoNetoBaseReserva * parseFloat(cupon.valor_descuento)) / 100;
+          } else if (cupon.tipo_descuento === 'fijo') {
+            montoDescuentoReal = parseFloat(cupon.valor_descuento);
+          }
+          montoDescuentoReal = Math.min(montoDescuentoReal, costoNetoBaseReserva);
+          montoDescuentoReal = parseFloat(montoDescuentoReal.toFixed(2));
+        } else {
+          idCuponParaGuardar = null; // El cupón no es válido en el momento de la reserva
+          console.warn(`Cupón ID ${cupon_aplicado_id} no fue válido al momento de crear la reserva. Procediendo sin descuento.`);
+        }
+      } else {
+        idCuponParaGuardar = null; // El cupón no existe o no está activo
+        console.warn(`Cupón ID ${cupon_aplicado_id} no encontrado o inactivo al momento de crear la reserva. Procediendo sin descuento.`);
+      }
+    }
+
+    // Calcular el desglose final de costos CON el descuento real (que podría ser 0)
+    const desgloseCostos = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, montoDescuentoReal);
+
+    if (desgloseCostos.error) {
+      return res.status(500).json({ error: `Error al calcular el desglose final de costos: ${desgloseCostos.error}` });
+    }
+
+    // Query para insertar la reserva
     const nuevaReservaQuery = `
       INSERT INTO "reservas" (
         espacio_id, cliente_nombre, cliente_email, cliente_telefono,
@@ -130,35 +174,58 @@ router.post('/', async (req, res) => {
         notas_adicionales, socio_id,
         -- Campos de facturación
         tipo_documento, facturacion_rut, facturacion_razon_social,
-        facturacion_direccion, facturacion_giro
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        facturacion_direccion, facturacion_giro,
+        -- Campos de cupón
+        cupon_aplicado_id, monto_descuento_aplicado
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *;
     `;
     const values = [
       espacio_id, cliente_nombre, cliente_email, cliente_telefono,
       fecha_reserva_cleaned, hora_inicio, hora_termino,
-      desgloseCostos.neto, desgloseCostos.iva, desgloseCostos.total,
+      desgloseCostos.costoNetoBase, // Guardar el neto ANTES del descuento del cupón
+      desgloseCostos.iva,           // IVA calculado sobre el neto DESPUÉS del descuento
+      desgloseCostos.total,         // Total final DESPUÉS del descuento y con IVA
       notas_adicionales, socioId,
-      // Valores para los nuevos campos de facturación
-      // Si tipo_documento es 'boleta' o no se proporciona, los campos de factura deben ser null.
-      // El frontend debería enviar null o no enviar los campos de factura si no son necesarios.
       tipo_documento,
       tipo_documento === 'factura' ? facturacion_rut : null,
       tipo_documento === 'factura' ? facturacion_razon_social : null,
       tipo_documento === 'factura' ? facturacion_direccion : null,
-      tipo_documento === 'factura' ? facturacion_giro : null
+      tipo_documento === 'factura' ? facturacion_giro : null,
+      idCuponParaGuardar, // Usar el ID del cupón validado (o null)
+      montoDescuentoReal // Usar el monto de descuento calculado por el backend (o 0)
     ];
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
     
-    // Añadir el desglose de costos a reservaCreada para el email, si es necesario
-    // (la plantilla de email podría necesitar acceso a estos valores también)
+    // Incrementar usos_actuales del cupón si se aplicó uno y fue válido
+    if (idCuponParaGuardar && montoDescuentoReal > 0) {
+      try {
+        // Usar una transacción sería más robusto aquí para asegurar atomicidad
+        const updateCuponResult = await pool.query(
+          'UPDATE cupones SET usos_actuales = usos_actuales + 1 WHERE id = $1 AND (usos_maximos IS NULL OR usos_actuales < usos_maximos)',
+          [idCuponParaGuardar]
+        );
+        if (updateCuponResult.rowCount > 0) {
+          console.log(`Cupón ID ${idCuponParaGuardar} actualizado, usos_actuales incrementado.`);
+        } else {
+          // Esto podría pasar si justo en el último momento otro uso lo agotó (condición de carrera)
+          // O si el cupón se desactivó/modificó entre la validación y este punto.
+          // La reserva ya se creó con el descuento, lo cual es un pequeño riesgo sin transacciones completas.
+          // Para este caso, se loguea una advertencia.
+          console.warn(`No se pudo incrementar el uso del cupón ID ${idCuponParaGuardar} o ya había alcanzado su límite/estaba inactivo.`);
+        }
+      } catch (errorCupon) {
+        console.error(`Error al intentar actualizar usos del cupón ID ${idCuponParaGuardar}:`, errorCupon);
+      }
+    }
+
+    // Para el email, asegurarse de que tenga los datos correctos para mostrar el desglose final.
+    // El objeto reservaCreada ya tiene los valores correctos de la BD.
+    // Si la plantilla de email necesita el neto ANTES del descuento, se lo podríamos añadir aquí,
+    // pero es mejor que la plantilla use los valores que reflejan el pago final.
     reservaCreada.nombre_espacio = espacio.nombre;
-    reservaCreada.costo_neto_historico = desgloseCostos.neto;
-    reservaCreada.costo_iva_historico = desgloseCostos.iva;
-    // reservaCreada.costo_total_historico ya viene de la BD, pero podría ser útil tenerlo directamente del cálculo
-    // para el email si la plantilla lo usa antes de que se lea de la BD en otro contexto.
-    // Sin embargo, el SELECT RETURNING * ya devuelve costo_total_historico.
+    // Los campos de costo ya están en reservaCreada desde RETURNING *
 
     await enviarEmailSolicitudRecibida(reservaCreada);
 

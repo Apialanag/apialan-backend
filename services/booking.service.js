@@ -49,13 +49,14 @@ const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva) => {
 };
 
 /**
- * Calcula el desglose de costos (neto, IVA, total) para una reserva.
+ * Calcula el desglose de costos (neto, IVA, total) para una reserva, aplicando opcionalmente un descuento de cupón.
  * @param {object} espacio - El objeto del espacio, debe contener precio_neto_por_hora y precio_neto_socio_por_hora.
  * @param {number} duracionReserva - La duración de la reserva en horas.
  * @param {boolean} isSocioBooking - True si la reserva es para un socio, false en caso contrario.
- * @returns {object} Un objeto con { neto, iva, total } o { error: mensaje } si hay problemas.
+ * @param {number} [montoDescuentoCupon=0] - El monto del descuento del cupón a aplicar sobre el neto base.
+ * @returns {object} Un objeto con { costoNetoBase, montoDescuentoAplicado, netoFinalParaIVA, iva, total } o { error: mensaje }.
  */
-const calcularDesgloseCostos = (espacio, duracionReserva, isSocioBooking) => {
+const calcularDesgloseCostos = (espacio, duracionReserva, isSocioBooking, montoDescuentoCupon = 0) => {
   let precioNetoPorHoraAplicable;
 
   // Determinar el precio neto por hora aplicable
@@ -82,21 +83,32 @@ const calcularDesgloseCostos = (espacio, duracionReserva, isSocioBooking) => {
   // Validar que el precio neto por hora aplicable sea un número
   if (isNaN(precioNetoPorHoraAplicable)) {
     console.error(`Error Crítico: No se pudo determinar un precio neto por hora válido para el espacio ID: ${espacio.id || 'desconocido'}. Socio: ${isSocioBooking}`);
-    // Devolver un objeto de error o lanzar una excepción podría ser más robusto aquí.
-    // Por ahora, para mantener consistencia con la lógica anterior, devolvemos un objeto con valores NaN o 0 para indicar fallo.
-    return { neto: NaN, iva: NaN, total: NaN, error: "No se pudo determinar un precio base válido." };
+    return {
+      costoNetoBase: NaN,
+      montoDescuentoAplicado: NaN,
+      netoFinalParaIVA: NaN,
+      iva: NaN,
+      total: NaN,
+      error: "No se pudo determinar un precio base válido."
+    };
   }
 
-  const costoNetoCalculado = precioNetoPorHoraAplicable * duracionReserva;
-  const costoIvaCalculado = costoNetoCalculado * TASA_IVA;
-  const costoTotalCalculado = costoNetoCalculado + costoIvaCalculado;
+  const costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
 
-  // Redondear a 2 decimales es una buena práctica para montos de dinero.
-  // El uso de .toFixed(2) devuelve string, por lo que se convierte de nuevo a número.
+  // Aplicar descuento del cupón. Asegurarse de que el descuento no sea mayor que el neto base.
+  const descuentoRealAplicado = Math.min(costoNetoBaseCalculado, montoDescuentoCupon || 0);
+  const netoFinalParaIVACalculado = costoNetoBaseCalculado - descuentoRealAplicado;
+
+  const costoIvaCalculado = netoFinalParaIVACalculado * TASA_IVA;
+  const costoTotalCalculado = netoFinalParaIVACalculado + costoIvaCalculado;
+
+  // Redondear a 2 decimales.
   return {
-    neto: parseFloat(costoNetoCalculado.toFixed(2)),
+    costoNetoBase: parseFloat(costoNetoBaseCalculado.toFixed(2)), // Este es el que se guardará como costo_neto_historico
+    montoDescuentoAplicado: parseFloat(descuentoRealAplicado.toFixed(2)),
+    netoFinalParaIVA: parseFloat(netoFinalParaIVACalculado.toFixed(2)), // Base para el IVA
     iva: parseFloat(costoIvaCalculado.toFixed(2)),
-    total: parseFloat(costoTotalCalculado.toFixed(2)),
+    total: parseFloat(costoTotalCalculado.toFixed(2)), // Este es el costo_total_historico
   };
 };
 
