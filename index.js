@@ -60,13 +60,15 @@ const espaciosRouter = require('./routes/espacios.routes.js');
 const reservasRouter = require('./routes/reservas.routes.js');
 const authRouter = require('./routes/auth.routes.js');
 const adminRouter = require('./routes/admin.routes.js');
-const sociosRouter = require('./routes/socios.routes.js'); // <-- 1. IMPORTA LA NUEVA RUTA
+const sociosRouter = require('./routes/socios.routes.js');
+const cuponesRouter = require('./routes/cupones.routes.js'); // Importar rutas de cupones
 
 app.use('/espacios', espaciosRouter);
 app.use('/reservas', reservasRouter);
 app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/socios', sociosRouter);
+app.use('/cupones', cuponesRouter); // Usar rutas de cupones
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {
