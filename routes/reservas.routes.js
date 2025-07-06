@@ -116,54 +116,88 @@ router.post('/', async (req, res) => {
 
     // SE ELIMINÓ UNA LLAVE DE CIERRE '}' EXTRA AQUÍ
 
-    let montoDescuentoReal = 0;
-    let idCuponParaGuardar = cupon_aplicado_id; // Usar el id que viene del frontend si se valida
+    // ----- INICIO LÓGICA DE CUPÓN Y COSTOS -----
+    console.log('[POST /reservas] Datos de cupón recibidos del frontend:', { cupon_aplicado_id, monto_descuento_aplicado });
 
-    // Calcular el costo neto base SIN descuento de cupón primero
-    const costoNetoBaseReserva = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0).costoNetoBase;
-    if (isNaN(costoNetoBaseReserva)) {
+    let montoDescuentoFinalBackend = 0;
+    let idCuponValidoParaGuardar = null; // Será el ID del cupón si es válido y se aplica
+
+    // 1. Calcular el costo neto base de la reserva (sin ningún descuento de cupón aún)
+    const calculoNetoBase = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0); // montoDescuentoCupon = 0
+    if (calculoNetoBase.error || isNaN(calculoNetoBase.costoNetoBase)) {
+        console.error('[POST /reservas] Error al calcular costoNetoBaseReserva:', calculoNetoBase.error);
         return res.status(500).json({ error: `Error al calcular el costo base de la reserva.` });
     }
+    const costoNetoBaseReserva = calculoNetoBase.costoNetoBase;
+    console.log('[POST /reservas] costoNetoBaseReserva (antes de cupón):', costoNetoBaseReserva);
 
-    if (idCuponParaGuardar) { // Si se envió un ID de cupón
-      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1 AND activo = TRUE', [idCuponParaGuardar]);
+    // 2. Re-validar el cupón si se proporcionó un cupon_aplicado_id
+    if (cupon_aplicado_id) {
+      console.log(`[POST /reservas] Re-validando cupón ID: ${cupon_aplicado_id} para neto base: ${costoNetoBaseReserva}`);
+      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1', [cupon_aplicado_id]);
+
       if (cuponResult.rows.length > 0) {
         const cupon = cuponResult.rows[0];
+        console.log('[POST /reservas] Cupón encontrado en BD:', cupon);
+
+        let cuponEsValidoEnBackend = true;
+        let motivoInvalidez = "";
+
+        if (!cupon.activo) {
+          cuponEsValidoEnBackend = false;
+          motivoInvalidez = "Cupón inactivo.";
+        }
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
-        const fechaDesde = cupon.fecha_validez_desde ? new Date(cupon.fecha_validez_desde) : null;
-        const fechaHasta = cupon.fecha_validez_hasta ? new Date(cupon.fecha_validez_hasta) : null;
+        if (cupon.fecha_validez_desde && hoy < new Date(cupon.fecha_validez_desde)) {
+          cuponEsValidoEnBackend = false;
+          motivoInvalidez = "Cupón aún no es válido.";
+        }
+        if (cupon.fecha_validez_hasta && hoy > new Date(cupon.fecha_validez_hasta)) {
+          cuponEsValidoEnBackend = false;
+          motivoInvalidez = "Cupón expirado.";
+        }
+        if (cupon.usos_maximos !== null && cupon.usos_actuales >= cupon.usos_maximos) {
+          cuponEsValidoEnBackend = false;
+          motivoInvalidez = "Cupón ha alcanzado límite de usos.";
+        }
+        if (costoNetoBaseReserva < parseFloat(cupon.monto_minimo_reserva_neto)) {
+          cuponEsValidoEnBackend = false;
+          motivoInvalidez = `No cumple monto mínimo de ${cupon.monto_minimo_reserva_neto}. Neto actual: ${costoNetoBaseReserva}`;
+        }
 
-        let cuponEsValidoAhora = true;
-        if (fechaDesde && hoy < fechaDesde) cuponEsValidoAhora = false;
-        if (fechaHasta && hoy > fechaHasta) cuponEsValidoAhora = false;
-        if (cupon.usos_maximos !== null && cupon.usos_actuales >= cupon.usos_maximos) cuponEsValidoAhora = false;
-        if (costoNetoBaseReserva < parseFloat(cupon.monto_minimo_reserva_neto)) cuponEsValidoAhora = false;
-
-        if (cuponEsValidoAhora) {
+        if (cuponEsValidoEnBackend) {
+          console.log('[POST /reservas] Cupón es VÁLIDO en backend.');
           if (cupon.tipo_descuento === 'porcentaje') {
-            montoDescuentoReal = (costoNetoBaseReserva * parseFloat(cupon.valor_descuento)) / 100;
+            montoDescuentoFinalBackend = (costoNetoBaseReserva * parseFloat(cupon.valor_descuento)) / 100;
           } else if (cupon.tipo_descuento === 'fijo') {
-            montoDescuentoReal = parseFloat(cupon.valor_descuento);
+            montoDescuentoFinalBackend = parseFloat(cupon.valor_descuento);
           }
-          montoDescuentoReal = Math.min(montoDescuentoReal, costoNetoBaseReserva);
-          montoDescuentoReal = parseFloat(montoDescuentoReal.toFixed(2));
+          montoDescuentoFinalBackend = Math.min(montoDescuentoFinalBackend, costoNetoBaseReserva); // No descontar más que el neto
+          montoDescuentoFinalBackend = parseFloat(montoDescuentoFinalBackend.toFixed(2));
+          idCuponValidoParaGuardar = cupon.id; // Confirmamos que este es el ID a guardar
+          console.log('[POST /reservas] montoDescuentoFinalBackend calculado:', montoDescuentoFinalBackend);
         } else {
-          idCuponParaGuardar = null; // El cupón no es válido en el momento de la reserva
-          console.warn(`Cupón ID ${cupon_aplicado_id} no fue válido al momento de crear la reserva. Procediendo sin descuento.`);
+          console.warn(`[POST /reservas] Cupón ID ${cupon_aplicado_id} NO FUE VÁLIDO en la re-validación del backend. Motivo: ${motivoInvalidez}. Procediendo sin descuento.`);
+          // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
         }
       } else {
-        idCuponParaGuardar = null; // El cupón no existe o no está activo
-        console.warn(`Cupón ID ${cupon_aplicado_id} no encontrado o inactivo al momento de crear la reserva. Procediendo sin descuento.`);
+        console.warn(`[POST /reservas] Cupón ID ${cupon_aplicado_id} (enviado por frontend) no encontrado en BD o inactivo durante re-validación. Procediendo sin descuento.`);
+        // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
       }
+    } else {
+      console.log('[POST /reservas] No se proporcionó cupon_aplicado_id. Procediendo sin descuento de cupón.');
     }
 
-    // Calcular el desglose final de costos CON el descuento real (que podría ser 0)
-    const desgloseCostos = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, montoDescuentoReal);
+    // 3. Calcular el desglose final de costos usando el montoDescuentoFinalBackend (que será 0 si no hubo cupón válido)
+    const desgloseCostosFinal = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, montoDescuentoFinalBackend);
+    console.log('[POST /reservas] desgloseCostosFinal:', desgloseCostosFinal);
 
-    if (desgloseCostos.error) {
-      return res.status(500).json({ error: `Error al calcular el desglose final de costos: ${desgloseCostos.error}` });
+    if (desgloseCostosFinal.error) {
+      console.error('[POST /reservas] Error en desgloseCostosFinal:', desgloseCostosFinal.error);
+      return res.status(500).json({ error: `Error al calcular el desglose final de costos: ${desgloseCostosFinal.error}` });
     }
+    // ----- FIN LÓGICA DE CUPÓN Y COSTOS -----
 
     // Query para insertar la reserva
     const nuevaReservaQuery = `
@@ -183,58 +217,52 @@ router.post('/', async (req, res) => {
     const values = [
       espacio_id, cliente_nombre, cliente_email, cliente_telefono,
       fecha_reserva_cleaned, hora_inicio, hora_termino,
-      desgloseCostos.costoNetoBase, // Guardar el neto ANTES del descuento del cupón
-      desgloseCostos.iva,           // IVA calculado sobre el neto DESPUÉS del descuento
-      desgloseCostos.total,         // Total final DESPUÉS del descuento y con IVA
+      desgloseCostosFinal.costoNetoBase, // Guardar el neto ANTES del descuento del cupón
+      desgloseCostosFinal.iva,           // IVA calculado sobre el neto DESPUÉS del descuento
+      desgloseCostosFinal.total,         // Total final DESPUÉS del descuento y con IVA
       notas_adicionales, socioId,
       tipo_documento,
       tipo_documento === 'factura' ? facturacion_rut : null,
       tipo_documento === 'factura' ? facturacion_razon_social : null,
       tipo_documento === 'factura' ? facturacion_direccion : null,
       tipo_documento === 'factura' ? facturacion_giro : null,
-      idCuponParaGuardar, // Usar el ID del cupón validado (o null)
-      montoDescuentoReal // Usar el monto de descuento calculado por el backend (o 0)
+      idCuponValidoParaGuardar, // Usar el ID del cupón validado (o null)
+      montoDescuentoFinalBackend // Usar el monto de descuento calculado por el backend (o 0)
     ];
+    console.log('[POST /reservas] Valores para INSERT en BD:', values);
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
+    console.log('[POST /reservas] Reserva creada en BD:', reservaCreada);
     
     // Incrementar usos_actuales del cupón si se aplicó uno y fue válido
-    if (idCuponParaGuardar && montoDescuentoReal > 0) {
+    if (idCuponValidoParaGuardar && montoDescuentoFinalBackend > 0) {
       try {
-        // Usar una transacción sería más robusto aquí para asegurar atomicidad
         const updateCuponResult = await pool.query(
           'UPDATE cupones SET usos_actuales = usos_actuales + 1 WHERE id = $1 AND (usos_maximos IS NULL OR usos_actuales < usos_maximos)',
-          [idCuponParaGuardar]
+          [idCuponValidoParaGuardar]
         );
         if (updateCuponResult.rowCount > 0) {
-          console.log(`Cupón ID ${idCuponParaGuardar} actualizado, usos_actuales incrementado.`);
+          console.log(`[POST /reservas] Cupón ID ${idCuponValidoParaGuardar} actualizado, usos_actuales incrementado.`);
         } else {
-          // Esto podría pasar si justo en el último momento otro uso lo agotó (condición de carrera)
-          // O si el cupón se desactivó/modificó entre la validación y este punto.
-          // La reserva ya se creó con el descuento, lo cual es un pequeño riesgo sin transacciones completas.
-          // Para este caso, se loguea una advertencia.
-          console.warn(`No se pudo incrementar el uso del cupón ID ${idCuponParaGuardar} o ya había alcanzado su límite/estaba inactivo.`);
+          console.warn(`[POST /reservas] No se pudo incrementar el uso del cupón ID ${idCuponValidoParaGuardar} (quizás ya alcanzó límite o se desactivó).`);
         }
       } catch (errorCupon) {
-        console.error(`Error al intentar actualizar usos del cupón ID ${idCuponParaGuardar}:`, errorCupon);
+        console.error(`[POST /reservas] Error al intentar actualizar usos del cupón ID ${idCuponValidoParaGuardar}:`, errorCupon);
       }
     }
 
-    // Para el email, asegurarse de que tenga los datos correctos para mostrar el desglose final.
-    // El objeto reservaCreada ya tiene los valores correctos de la BD.
-    // Si la plantilla de email necesita el neto ANTES del descuento, se lo podríamos añadir aquí,
-    // pero es mejor que la plantilla use los valores que reflejan el pago final.
     reservaCreada.nombre_espacio = espacio.nombre;
-    // Los campos de costo ya están en reservaCreada desde RETURNING *
+    // Los campos de costo ya están en reservaCreada desde RETURNING *.
+    // El objeto `reservaCreada` se usará para los correos.
 
     await enviarEmailSolicitudRecibida(reservaCreada);
 
-    // Enviar notificación al administrador
-    const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS; // Asegúrate de tener esta variable de entorno
+    const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS;
     if (adminEmail) {
+      // Pasar el objeto reservaCreada que ya contiene los datos correctos de la BD
       await enviarEmailNotificacionAdminNuevaSolicitud(reservaCreada, adminEmail);
     } else {
-      console.warn('ADMIN_EMAIL_NOTIFICATIONS no está configurado. No se enviará correo al administrador.');
+      console.warn('[POST /reservas] ADMIN_EMAIL_NOTIFICATIONS no está configurado. No se enviará correo al administrador.');
     }
 
     res.status(201).json({ mensaje: 'Solicitud de reserva recibida. Por favor, realiza el pago para confirmar.', reserva: reservaCreada });
