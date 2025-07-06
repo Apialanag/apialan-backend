@@ -64,7 +64,8 @@ router.post('/', async (req, res) => {
       tipo_documento, facturacion_rut, facturacion_razon_social,
       facturacion_direccion, facturacion_giro,
       // Campos del cupón
-      cupon_aplicado_id, monto_descuento_aplicado
+      cupon_id, // Cambiado de cupon_aplicado_id para coincidir con lo que envía el frontend
+      monto_descuento_aplicado // Este valor del frontend se ignora, el backend recalcula el descuento
     } = req.body;
 
     // Validate and format fecha_reserva_input
@@ -117,10 +118,14 @@ router.post('/', async (req, res) => {
     // SE ELIMINÓ UNA LLAVE DE CIERRE '}' EXTRA AQUÍ
 
     // ----- INICIO LÓGICA DE CUPÓN Y COSTOS -----
-    console.log('[POST /reservas] Datos de cupón recibidos del frontend:', { cupon_aplicado_id, monto_descuento_aplicado });
+    // 'monto_descuento_aplicado' del req.body se ignora. Solo se usa 'cupon_id'.
+    console.log('[POST /reservas] Datos de cupón recibidos del frontend:', { cupon_id });
+
 
     let montoDescuentoFinalBackend = 0;
-    let idCuponValidoParaGuardar = null; // Será el ID del cupón si es válido y se aplica
+    // Usar cupon_id (que es el que realmente llega del frontend) para la lógica de re-validación.
+    // idCuponValidoParaGuardar almacenará el ID del cupón si es válido y se aplica.
+    let idCuponValidoParaGuardar = null;
 
     // 1. Calcular el costo neto base de la reserva (sin ningún descuento de cupón aún)
     const calculoNetoBase = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0); // montoDescuentoCupon = 0
@@ -131,10 +136,10 @@ router.post('/', async (req, res) => {
     const costoNetoBaseReserva = calculoNetoBase.costoNetoBase;
     console.log('[POST /reservas] costoNetoBaseReserva (antes de cupón):', costoNetoBaseReserva);
 
-    // 2. Re-validar el cupón si se proporcionó un cupon_aplicado_id
-    if (cupon_aplicado_id) {
-      console.log(`[POST /reservas] Re-validando cupón ID: ${cupon_aplicado_id} para neto base: ${costoNetoBaseReserva}`);
-      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1', [cupon_aplicado_id]);
+    // 2. Re-validar el cupón si se proporcionó un cupon_id
+    if (cupon_id) { // <--- Cambiado de cupon_aplicado_id a cupon_id
+      console.log(`[POST /reservas] Re-validando cupón ID: ${cupon_id} para neto base: ${costoNetoBaseReserva}`);
+      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1', [cupon_id]); // <--- Usar cupon_id
 
       if (cuponResult.rows.length > 0) {
         const cupon = cuponResult.rows[0];
@@ -178,15 +183,15 @@ router.post('/', async (req, res) => {
           idCuponValidoParaGuardar = cupon.id; // Confirmamos que este es el ID a guardar
           console.log('[POST /reservas] montoDescuentoFinalBackend calculado:', montoDescuentoFinalBackend);
         } else {
-          console.warn(`[POST /reservas] Cupón ID ${cupon_aplicado_id} NO FUE VÁLIDO en la re-validación del backend. Motivo: ${motivoInvalidez}. Procediendo sin descuento.`);
+          console.warn(`[POST /reservas] Cupón ID ${cupon_id} NO FUE VÁLIDO en la re-validación del backend. Motivo: ${motivoInvalidez}. Procediendo sin descuento.`);
           // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
         }
       } else {
-        console.warn(`[POST /reservas] Cupón ID ${cupon_aplicado_id} (enviado por frontend) no encontrado en BD o inactivo durante re-validación. Procediendo sin descuento.`);
+        console.warn(`[POST /reservas] Cupón ID ${cupon_id} (enviado por frontend) no encontrado en BD durante re-validación. Procediendo sin descuento.`);
         // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
       }
     } else {
-      console.log('[POST /reservas] No se proporcionó cupon_aplicado_id. Procediendo sin descuento de cupón.');
+      console.log('[POST /reservas] No se proporcionó cupon_id. Procediendo sin descuento de cupón.');
     }
 
     // 3. Calcular el desglose final de costos usando el montoDescuentoFinalBackend (que será 0 si no hubo cupón válido)
