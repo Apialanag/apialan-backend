@@ -163,12 +163,27 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reserva, adminEmail) =
         <li><strong>Fecha:</strong> ${formatDate(reserva.fecha_reserva)}</li>
         <li><strong>Hora Inicio:</strong> ${formatTime(reserva.hora_inicio)}</li>
         <li><strong>Hora Término:</strong> ${formatTime(reserva.hora_termino)}</li>
-        <li><strong>Neto:</strong> ${formatCurrency(reserva.costo_neto_historico)}</li>
-        <li><strong>IVA (19%):</strong> ${formatCurrency(reserva.costo_iva_historico)}</li>
-        <li><strong>Total:</strong> ${formatCurrency(reserva.costo_total_historico)}</li>
-        <li><strong>Notas Adicionales:</strong> ${reserva.notas_adicionales || 'Ninguna'}</li>
-        <li><strong>Socio ID:</strong> ${reserva.socio_id || 'No aplica'}</li>
       </ul>
+      <hr>
+      <h3>Detalles del Costo:</h3>
+      <ul>
+        <li><strong>Subtotal Neto:</strong> ${formatCurrency(reserva.costo_neto_historico)}</li>
+        ${(reserva.monto_descuento_aplicado && parseFloat(reserva.monto_descuento_aplicado) > 0) ? `
+          <li><strong>Descuento Cupón:</strong> - ${formatCurrency(reserva.monto_descuento_aplicado)}</li>
+          <li><strong>Neto con Descuento:</strong> ${formatCurrency(parseFloat(reserva.costo_neto_historico) - parseFloat(reserva.monto_descuento_aplicado))}</li>
+        ` : ''}
+        <li><strong>IVA (19%):</strong> ${formatCurrency(reserva.costo_iva_historico)}</li>
+        <li><strong>Total General:</strong> ${formatCurrency(reserva.costo_total_historico)}</li>
+      </ul>
+       ${ reserva.notas_adicionales ? `
+      <hr>
+      <h3>Notas Adicionales:</h3>
+      <p>${reserva.notas_adicionales}</p>
+      ` : '' }
+      ${ reserva.socio_id ? `
+      <hr>
+      <p><strong>Reserva de Socio ID:</strong> ${reserva.socio_id}</p>
+      ` : ''}
       ${ reserva.tipo_documento ? `
       <hr>
       <h3>Información de Facturación:</h3>
