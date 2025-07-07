@@ -280,23 +280,38 @@ router.put('/:id', async (req, res) => {
     if (fecha_validez_hasta !== undefined) fieldsToUpdate.fecha_validez_hasta = fecha_validez_hasta || null;
     if (usos_maximos !== undefined) fieldsToUpdate.usos_maximos = usos_maximos || null;
     if (monto_minimo_reserva_neto !== undefined) fieldsToUpdate.monto_minimo_reserva_neto = monto_minimo_reserva_neto || 0;
+    // Construir la query dinámicamente
+    const fieldsToUpdate = {}; // Objeto para los campos que SÍ usan parámetros
+    const directSetClauses = ["fecha_actualizacion = CURRENT_TIMESTAMP"]; // Cláusulas directas
+
+    // Llenar fieldsToUpdate solo con los campos que vienen del req.body y usan parámetros
+    if (codigo !== undefined) fieldsToUpdate.codigo = codigo.toUpperCase();
+    if (tipo_descuento !== undefined) fieldsToUpdate.tipo_descuento = tipo_descuento;
+    if (valor_descuento !== undefined) fieldsToUpdate.valor_descuento = valor_descuento;
+    if (fecha_validez_desde !== undefined) fieldsToUpdate.fecha_validez_desde = fecha_validez_desde || null;
+    if (fecha_validez_hasta !== undefined) fieldsToUpdate.fecha_validez_hasta = fecha_validez_hasta || null;
+    if (usos_maximos !== undefined) fieldsToUpdate.usos_maximos = usos_maximos || null;
+    if (monto_minimo_reserva_neto !== undefined) fieldsToUpdate.monto_minimo_reserva_neto = monto_minimo_reserva_neto || 0;
     if (descripcion !== undefined) fieldsToUpdate.descripcion = descripcion || null;
     if (activo !== undefined) fieldsToUpdate.activo = activo;
     if (usos_actuales !== undefined) fieldsToUpdate.usos_actuales = usos_actuales;
-    fieldsToUpdate.fecha_actualizacion = 'CURRENT_TIMESTAMP';
 
-    const setClauses = Object.keys(fieldsToUpdate).map((key, index) =>
+    // Construir las cláusulas SET parametrizadas
+    const parametrizedSetClauses = Object.keys(fieldsToUpdate).map((key, index) =>
       `${key} = $${index + 1}`
-    ).join(', ');
+    );
 
-    if (setClauses.length === 0) {
-      return res.status(400).json({ error: 'No se proporcionaron campos para actualizar.' });
+    const allSetClauses = [...directSetClauses, ...parametrizedSetClauses];
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      return res.status(400).json({ error: 'No se proporcionaron campos (aparte de la fecha de actualización automática) para actualizar.' });
     }
 
-    const values = Object.values(fieldsToUpdate);
+    const finalSetClause = allSetClauses.join(', ');
+    const values = Object.values(fieldsToUpdate); // Solo los valores para los parámetros $N
     values.push(id); // Para el WHERE id = ...
 
-    const query = `UPDATE cupones SET ${setClauses} WHERE id = $${values.length} RETURNING *`;
+    const query = `UPDATE cupones SET ${finalSetClause} WHERE id = $${values.length} RETURNING *`;
 
     const updatedCupon = await pool.query(query, values);
 
