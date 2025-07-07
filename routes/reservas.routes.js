@@ -20,7 +20,7 @@ const { parseISO, format, isValid } = require('date-fns');
 router.get('/', async (req, res) => {
   try {
     const { fecha, espacio_id, mes } = req.query;
-    let queryText = `SELECT id, espacio_id, fecha_reserva, hora_inicio, hora_termino, estado_reserva FROM "reservas"`;
+    let queryText = `SELECT id, espacio_id, TO_CHAR(fecha_reserva, 'YYYY-MM-DD') AS fecha_reserva, hora_inicio, hora_termino, estado_reserva FROM "reservas"`;
     const queryParams = [];
     const whereClauses = [];
     let paramIndex = 1;
