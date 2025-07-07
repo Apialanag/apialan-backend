@@ -119,31 +119,26 @@ router.post('/', async (req, res) => {
 
     // ----- INICIO LÓGICA DE CUPÓN Y COSTOS -----
     // 'monto_descuento_aplicado' del req.body se ignora. Solo se usa 'cupon_id'.
-    console.log('[POST /reservas] Datos de cupón recibidos del frontend:', { cupon_id });
-
+    // console.log('[POST /reservas] Datos de cupón recibidos del frontend:', { cupon_id }); // Log reducido
 
     let montoDescuentoFinalBackend = 0;
-    // Usar cupon_id (que es el que realmente llega del frontend) para la lógica de re-validación.
-    // idCuponValidoParaGuardar almacenará el ID del cupón si es válido y se aplica.
     let idCuponValidoParaGuardar = null;
 
-    // 1. Calcular el costo neto base de la reserva (sin ningún descuento de cupón aún)
-    const calculoNetoBase = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0); // montoDescuentoCupon = 0
+    const calculoNetoBase = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, 0);
     if (calculoNetoBase.error || isNaN(calculoNetoBase.costoNetoBase)) {
         console.error('[POST /reservas] Error al calcular costoNetoBaseReserva:', calculoNetoBase.error);
         return res.status(500).json({ error: `Error al calcular el costo base de la reserva.` });
     }
     const costoNetoBaseReserva = calculoNetoBase.costoNetoBase;
-    console.log('[POST /reservas] costoNetoBaseReserva (antes de cupón):', costoNetoBaseReserva);
+    // console.log('[POST /reservas] costoNetoBaseReserva (antes de cupón):', costoNetoBaseReserva); // Log reducido
 
-    // 2. Re-validar el cupón si se proporcionó un cupon_id
-    if (cupon_id) { // <--- Cambiado de cupon_aplicado_id a cupon_id
-      console.log(`[POST /reservas] Re-validando cupón ID: ${cupon_id} para neto base: ${costoNetoBaseReserva}`);
-      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1', [cupon_id]); // <--- Usar cupon_id
+    if (cupon_id) {
+      // console.log(`[POST /reservas] Re-validando cupón ID: ${cupon_id} para neto base: ${costoNetoBaseReserva}`); // Log reducido
+      const cuponResult = await pool.query('SELECT * FROM cupones WHERE id = $1', [cupon_id]);
 
       if (cuponResult.rows.length > 0) {
         const cupon = cuponResult.rows[0];
-        console.log('[POST /reservas] Cupón encontrado en BD:', cupon);
+        // console.log('[POST /reservas] Cupón encontrado en BD:', cupon); // Log reducido
 
         let cuponEsValidoEnBackend = true;
         let motivoInvalidez = "";
@@ -172,31 +167,28 @@ router.post('/', async (req, res) => {
         }
 
         if (cuponEsValidoEnBackend) {
-          console.log('[POST /reservas] Cupón es VÁLIDO en backend.');
+          // console.log('[POST /reservas] Cupón es VÁLIDO en backend.'); // Log reducido
           if (cupon.tipo_descuento === 'porcentaje') {
             montoDescuentoFinalBackend = (costoNetoBaseReserva * parseFloat(cupon.valor_descuento)) / 100;
           } else if (cupon.tipo_descuento === 'fijo') {
             montoDescuentoFinalBackend = parseFloat(cupon.valor_descuento);
           }
-          montoDescuentoFinalBackend = Math.min(montoDescuentoFinalBackend, costoNetoBaseReserva); // No descontar más que el neto
+          montoDescuentoFinalBackend = Math.min(montoDescuentoFinalBackend, costoNetoBaseReserva);
           montoDescuentoFinalBackend = parseFloat(montoDescuentoFinalBackend.toFixed(2));
-          idCuponValidoParaGuardar = cupon.id; // Confirmamos que este es el ID a guardar
-          console.log('[POST /reservas] montoDescuentoFinalBackend calculado:', montoDescuentoFinalBackend);
+          idCuponValidoParaGuardar = cupon.id;
+          console.log(`[POST /reservas] Cupón ID ${idCuponValidoParaGuardar} validado. Descuento: ${montoDescuentoFinalBackend}`);
         } else {
           console.warn(`[POST /reservas] Cupón ID ${cupon_id} NO FUE VÁLIDO en la re-validación del backend. Motivo: ${motivoInvalidez}. Procediendo sin descuento.`);
-          // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
         }
       } else {
         console.warn(`[POST /reservas] Cupón ID ${cupon_id} (enviado por frontend) no encontrado en BD durante re-validación. Procediendo sin descuento.`);
-        // idCuponValidoParaGuardar se queda como null, montoDescuentoFinalBackend se queda en 0
       }
     } else {
-      console.log('[POST /reservas] No se proporcionó cupon_id. Procediendo sin descuento de cupón.');
+      // console.log('[POST /reservas] No se proporcionó cupon_id. Procediendo sin descuento de cupón.'); // Log reducido
     }
 
-    // 3. Calcular el desglose final de costos usando el montoDescuentoFinalBackend (que será 0 si no hubo cupón válido)
     const desgloseCostosFinal = calcularDesgloseCostos(espacio, duracionReserva, isSocioBooking, montoDescuentoFinalBackend);
-    console.log('[POST /reservas] desgloseCostosFinal:', desgloseCostosFinal);
+    // console.log('[POST /reservas] desgloseCostosFinal:', desgloseCostosFinal); // Log reducido
 
     if (desgloseCostosFinal.error) {
       console.error('[POST /reservas] Error en desgloseCostosFinal:', desgloseCostosFinal.error);
@@ -222,24 +214,23 @@ router.post('/', async (req, res) => {
     const values = [
       espacio_id, cliente_nombre, cliente_email, cliente_telefono,
       fecha_reserva_cleaned, hora_inicio, hora_termino,
-      desgloseCostosFinal.costoNetoBase, // Guardar el neto ANTES del descuento del cupón
-      desgloseCostosFinal.iva,           // IVA calculado sobre el neto DESPUÉS del descuento
-      desgloseCostosFinal.total,         // Total final DESPUÉS del descuento y con IVA
+      desgloseCostosFinal.costoNetoBase,
+      desgloseCostosFinal.iva,
+      desgloseCostosFinal.total,
       notas_adicionales, socioId,
       tipo_documento,
       tipo_documento === 'factura' ? facturacion_rut : null,
       tipo_documento === 'factura' ? facturacion_razon_social : null,
       tipo_documento === 'factura' ? facturacion_direccion : null,
       tipo_documento === 'factura' ? facturacion_giro : null,
-      idCuponValidoParaGuardar, // Usar el ID del cupón validado (o null)
-      montoDescuentoFinalBackend // Usar el monto de descuento calculado por el backend (o 0)
+      idCuponValidoParaGuardar,
+      montoDescuentoFinalBackend
     ];
-    console.log('[POST /reservas] Valores para INSERT en BD:', values);
+    // console.log('[POST /reservas] Valores para INSERT en BD:', values); // Log reducido
     const resultado = await pool.query(nuevaReservaQuery, values);
     const reservaCreada = resultado.rows[0];
-    console.log('[POST /reservas] Reserva creada en BD:', reservaCreada);
+    // console.log('[POST /reservas] Reserva creada en BD:', reservaCreada); // Log reducido
     
-    // Incrementar usos_actuales del cupón si se aplicó uno y fue válido
     if (idCuponValidoParaGuardar && montoDescuentoFinalBackend > 0) {
       try {
         const updateCuponResult = await pool.query(
@@ -257,14 +248,11 @@ router.post('/', async (req, res) => {
     }
 
     reservaCreada.nombre_espacio = espacio.nombre;
-    // Los campos de costo ya están en reservaCreada desde RETURNING *.
-    // El objeto `reservaCreada` se usará para los correos.
 
     await enviarEmailSolicitudRecibida(reservaCreada);
 
     const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS;
     if (adminEmail) {
-      // Pasar el objeto reservaCreada que ya contiene los datos correctos de la BD
       await enviarEmailNotificacionAdminNuevaSolicitud(reservaCreada, adminEmail);
     } else {
       console.warn('[POST /reservas] ADMIN_EMAIL_NOTIFICATIONS no está configurado. No se enviará correo al administrador.');
