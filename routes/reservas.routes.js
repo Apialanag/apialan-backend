@@ -392,4 +392,112 @@ router.delete('/:id', checkAuth, async (req, res) => {
   }
 });
 
+// ----------------------------------------------------------------
+// RUTA PARA INICIAR EL PROCESO DE PAGO DE UNA RESERVA
+// ----------------------------------------------------------------
+router.post('/:id/iniciar-pago', checkAuth, async (req, res) => {
+  const { id: reservaId } = req.params;
+  const clienteEmail = req.userData ? req.userData.email : null; // Asumiendo que checkAuth añade userData
+
+  try {
+    // 1. Validar que la reserva exista
+    const reservaQueryResult = await pool.query('SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1', [reservaId]);
+    if (reservaQueryResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Reserva no encontrada.' });
+    }
+    const reserva = reservaQueryResult.rows[0];
+
+    // 1.1. Autorización: Verificar si el usuario autenticado es el dueño de la reserva
+    // Esto es una capa básica. Si los administradores también pueden iniciar pagos, la lógica necesitaría ajustarse.
+    // O si checkAuth ya valida roles de admin que pueden acceder a todo.
+    if (req.userData && req.userData.role !== 'admin' && reserva.cliente_email !== clienteEmail) {
+        console.warn(`[INICIAR PAGO] Intento no autorizado por usuario ${clienteEmail} para reserva ${reservaId} perteneciente a ${reserva.cliente_email}`);
+        return res.status(403).json({ error: 'No está autorizado para iniciar el pago de esta reserva.' });
+    }
+    // Si no hay req.userData (p.ej. checkAuth no es estricto o es una ruta pública), esta verificación se omite.
+    // Considera si esta ruta debe ser estrictamente para usuarios autenticados. El checkAuth sugiere que sí.
+
+    // 2. Validar el estado de la reserva y el pago
+    if (reserva.estado_pago === 'pagado') {
+      return res.status(400).json({ error: 'Esta reserva ya ha sido pagada.' });
+    }
+    // Ajusta los estados permitidos según tu lógica de negocio.
+    // Por ejemplo, una reserva 'solicitada' o 'confirmada_pendiente_pago' podría ser válida para pagar.
+    const estadosValidosParaPagar = ['solicitada', 'confirmada_pendiente_pago']; // Ejemplo, ajusta según tu sistema
+    if (!estadosValidosParaPagar.includes(reserva.estado_reserva)) {
+      console.log(`[INICIAR PAGO] Intento de pago para reserva ${reservaId} en estado no válido: ${reserva.estado_reserva}`);
+      return res.status(400).json({ error: `La reserva no está en un estado válido para iniciar el pago. Estado actual: ${reserva.estado_reserva}` });
+    }
+
+    // 3. LÓGICA DEL SERVICIO DE PAGO (PLACEHOLDER)
+    // =================================================================
+    // AQUÍ DEBES INTEGRAR TU SERVICIO DE PAGO (Ej: Mercado Pago, Stripe, PayPal)
+    //
+    // Ejemplo conceptual con Mercado Pago:
+    //
+    // const { MercadoPagoConfig, Preference } = require('mercadopago');
+    // const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+    // const preference = new Preference(client);
+    //
+    // const preferenceData = {
+    //   items: [
+    //     {
+    //       id: reserva.id,
+    //       title: `Reserva para ${reserva.nombre_espacio} el ${reserva.fecha_reserva}`,
+    //       quantity: 1,
+    //       unit_price: parseFloat(reserva.costo_total_historico), // Asegúrate que sea el monto correcto
+    //       currency_id: 'CLP', // O la moneda que uses
+    //     }
+    //   ],
+    //   payer: {
+    //     email: reserva.cliente_email,
+    //     // Otros datos del pagador si los tienes/necesitas
+    //   },
+    //   back_urls: { // URLs a las que Mercado Pago redirigirá al usuario
+    //     success: `${process.env.FRONTEND_URL}/pago/exitoso`,
+    //     failure: `${process.env.FRONTEND_URL}/pago/fallido`,
+    //     pending: `${process.env.FRONTEND_URL}/pago/pendiente`
+    //   },
+    //   auto_return: 'approved', // Redirige automáticamente solo si el pago es aprobado
+    //   external_reference: reserva.id.toString(), // Referencia externa, útil para webhooks
+    //   notification_url: `${process.env.API_URL}/pagos/webhook/mercadopago` // URL para notificaciones de MP
+    // };
+    //
+    // const mpResponse = await preference.create({ body: preferenceData });
+    // const urlPago = mpResponse.init_point; // URL de checkout de Mercado Pago
+    // const idPreferenciaPago = mpResponse.id; // ID de la preferencia
+    //
+    // await pool.query(
+    //   'UPDATE "reservas" SET estado_pago = $1, id_preferencia_pago = $2 WHERE id = $3',
+    //   ['pago_iniciado', idPreferenciaPago, reservaId]
+    // );
+    //
+    // =================================================================
+    // FIN LÓGICA DEL SERVICIO DE PAGO (PLACEHOLDER)
+
+    // ***** INICIO SECCIÓN SIMULADA (REEMPLAZAR CON LO DE ARRIBA) *****
+    // Simulación hasta que implementes la pasarela real:
+    const urlPagoSimulada = `https://tu-pagina-de-pagos.com/checkout?reservaId=${reservaId}&monto=${reserva.costo_total_historico}&email=${reserva.cliente_email}`;
+    const idPreferenciaSimulada = `sim_pref_${Date.now()}`;
+
+    await pool.query(
+      'UPDATE "reservas" SET estado_pago = $1, id_preferencia_pago = $2 WHERE id = $3',
+      ['pago_iniciado', idPreferenciaSimulada, reservaId]
+    );
+    console.log(`[INICIAR PAGO] Reserva ID: ${reservaId}. Estado actualizado a 'pago_iniciado'. ID de preferencia simulada: ${idPreferenciaSimulada}`);
+    // ***** FIN SECCIÓN SIMULADA *****
+
+    res.status(200).json({
+      mensaje: 'Proceso de pago iniciado. Redirigiendo a la pasarela de pago.',
+      reservaId: reserva.id,
+      urlPago: urlPagoSimulada, // Enviar la URL de pago real (e.g., mpResponse.init_point)
+      idPreferencia: idPreferenciaSimulada // Enviar el ID de preferencia real (e.g., mpResponse.id)
+    });
+
+  } catch (err) {
+    console.error(`[INICIAR PAGO ERROR] Reserva ID ${reservaId}:`, err.message, err.stack);
+    res.status(500).json({ error: 'Error del servidor al iniciar el proceso de pago.' });
+  }
+});
+
 module.exports = router;
