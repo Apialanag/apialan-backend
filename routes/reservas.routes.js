@@ -206,9 +206,9 @@ router.post('/', async (req, res) => {
         -- Campos de facturación
         tipo_documento, facturacion_rut, facturacion_razon_social,
         facturacion_direccion, facturacion_giro,
-        -- Campos de cupón
-        cupon_aplicado_id, monto_descuento_aplicado
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        cupon_aplicado_id, monto_descuento_aplicado,
+        estado_reserva, estado_pago
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *;
     `;
     const values = [
@@ -224,7 +224,9 @@ router.post('/', async (req, res) => {
       tipo_documento === 'factura' ? facturacion_direccion : null,
       tipo_documento === 'factura' ? facturacion_giro : null,
       idCuponValidoParaGuardar,
-      montoDescuentoFinalBackend
+      montoDescuentoFinalBackend,
+      'pendiente_pago', // estado_reserva inicial
+      'pendiente'       // estado_pago inicial
     ];
     // console.log('[POST /reservas] Valores para INSERT en BD:', values); // Log reducido
     const resultado = await pool.query(nuevaReservaQuery, values);

@@ -3,18 +3,7 @@
   <p>Hemos recibido tu solicitud de reserva y hemos guardado tu cupo temporalmente. Para confirmar tu reserva de forma definitiva, por favor realiza el pago.</p>
 
   <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Instrucciones de Pago</h3>
-  <p>Por favor, realiza el pago de tu reserva. A continuación, el desglose:</p>
-  <ul style="list-style-type: none; padding-left: 0;">
-    <li><strong>Subtotal Neto:</strong> <%= formatCurrency(reserva.costo_neto_historico) %></li>
-    <% const montoDescuento = parseFloat(reserva.monto_descuento_aplicado); %>
-    <% if (montoDescuento && montoDescuento > 0) { %>
-      <li><strong>Descuento Cupón:</strong> - <%= formatCurrency(montoDescuento) %></li>
-      <li><strong>Neto con Descuento:</strong> <%= formatCurrency(parseFloat(reserva.costo_neto_historico) - montoDescuento) %></li>
-    <% } %>
-    <li><strong>IVA (19%):</strong> <%= formatCurrency(reserva.costo_iva_historico) %></li>
-    <li><strong>Total a Pagar:</strong> <strong><%= formatCurrency(reserva.costo_total_historico) %></strong></li>
-  </ul>
-  <p>Puedes realizar una transferencia bancaria por el <strong>Total a Pagar</strong> a la siguiente cuenta:</p>
+  <p>Puedes realizar una transferencia bancaria por un total de <strong><%= formatCurrency(reserva.costo_total) %></strong> a la siguiente cuenta:</p>
 
   <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
     <tr style="background-color: #f8f9fa;"><td style="padding: 10px; border: 1px solid #ddd;"><strong>Banco:</strong></td><td style="padding: 10px; border: 1px solid #ddd;">Banco Estado</td></tr>
