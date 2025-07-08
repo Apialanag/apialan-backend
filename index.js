@@ -70,6 +70,7 @@ const authRouter = require('./routes/auth.routes.js');
 const adminRouter = require('./routes/admin.routes.js');
 const sociosRouter = require('./routes/socios.routes.js');
 const cuponesRouter = require('./routes/cupones.routes.js'); // Importar rutas de cupones
+const blockedDatesRouter = require('./routes/blocked-dates.routes.js'); // Importar rutas de fechas bloqueadas
 
 app.use('/espacios', espaciosRouter);
 app.use('/reservas', reservasRouter);
@@ -77,6 +78,7 @@ app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/socios', sociosRouter);
 app.use('/cupones', cuponesRouter); // Usar rutas de cupones
+app.use('/api/blocked-dates', blockedDatesRouter); // Usar rutas de fechas bloqueadas
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {

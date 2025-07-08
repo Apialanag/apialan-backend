@@ -12,9 +12,11 @@ const getMonday = (d) => {
   return monday.toISOString().split('T')[0]; // Devuelve en formato YYYY-MM-DD
 };
 
-const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva) => {
+// Modificado para aceptar un cliente de base de datos opcional para transacciones
+const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva, dbClient = null) => {
+  const queryRunner = dbClient || pool; // Usar el cliente de transacción si se proporciona, sino el pool global
   try {
-    const socioResult = await pool.query('SELECT id FROM "socios" WHERE rut = $1 AND estado = $2', [rut_socio, 'activo']);
+    const socioResult = await queryRunner.query('SELECT id FROM "socios" WHERE rut = $1 AND estado = $2', [rut_socio, 'activo']);
     if (socioResult.rowCount === 0) {
       return { success: false, error: 'El RUT proporcionado no corresponde a un socio activo.', status: 403 };
     }
@@ -27,15 +29,21 @@ const validarHorasSocio = async (rut_socio, fecha_reserva, duracionReserva) => {
 
     // Consider only active reservations
     // Added estado_reserva check
+    // Esta consulta ahora también debe considerar la nueva columna end_date para ser precisa
+    // Sin embargo, la lógica de "horas usadas en la semana" se basa en la fecha_reserva.
+    // Si una reserva larga abarca varias semanas, cómo se cuentan las horas es una política de negocio.
+    // Por ahora, se mantiene la lógica original que cuenta la reserva completa en la semana de su fecha_reserva.
     const horasUsadasQuery = `
       SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (hora_termino - hora_inicio))/3600), 0) as total_horas
       FROM "reservas"
       WHERE socio_id = $1
-        AND fecha_reserva >= $2
+        AND fecha_reserva >= $2 -- Fecha de inicio de la reserva dentro de la semana
         AND fecha_reserva <= $3
         AND estado_reserva NOT IN ('cancelada_por_cliente', 'cancelada_por_admin', 'rechazada');
     `;
-    const horasUsadasResult = await pool.query(horasUsadasQuery, [socioId, inicioSemana, finSemana]);
+    // Nota: Si una reserva es de rango largo (ej. Lun-Vie), todas sus horas se imputan a la semana del Lunes.
+    // Esto podría necesitar revisión si las horas deben distribuirse o contarse de otra forma para rangos largos.
+    const horasUsadasResult = await queryRunner.query(horasUsadasQuery, [socioId, inicioSemana, finSemana]);
     const horasUsadas = parseFloat(horasUsadasResult.rows[0].total_horas);
 
     if (horasUsadas + duracionReserva > 6) {
