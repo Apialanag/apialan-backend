@@ -5,14 +5,19 @@
   <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Instrucciones de Pago</h3>
   <p>Por favor, realiza el pago de tu reserva. A continuación, el desglose:</p>
   <ul style="list-style-type: none; padding-left: 0;">
-    <li><strong>Subtotal Neto:</strong> <%= formatCurrency(reserva.costo_neto_historico) %></li>
-    <% const montoDescuento = parseFloat(reserva.monto_descuento_aplicado); %>
+    <%# Los siguientes valores deben corresponder al costo TOTAL de la solicitud %>
+    <%# reserva.costo_neto_total_solicitud_o_equivalente %>
+    <%# reserva.monto_descuento_total_solicitud_o_equivalente %>
+    <%# reserva.iva_total_solicitud_o_equivalente %>
+    <%# reserva.costo_total_solicitud %>
+    <li><strong>Subtotal Neto:</strong> <%= formatCurrency(reserva.costo_neto_total_solicitud_o_equivalente) %></li>
+    <% const montoDescuento = parseFloat(reserva.monto_descuento_total_solicitud_o_equivalente); %>
     <% if (montoDescuento && montoDescuento > 0) { %>
       <li><strong>Descuento Cupón:</strong> - <%= formatCurrency(montoDescuento) %></li>
-      <li><strong>Neto con Descuento:</strong> <%= formatCurrency(parseFloat(reserva.costo_neto_historico) - montoDescuento) %></li>
+      <li><strong>Neto con Descuento:</strong> <%= formatCurrency(parseFloat(reserva.costo_neto_total_solicitud_o_equivalente) - montoDescuento) %></li>
     <% } %>
-    <li><strong>IVA (19%):</strong> <%= formatCurrency(reserva.costo_iva_historico) %></li>
-    <li><strong>Total a Pagar:</strong> <strong><%= formatCurrency(reserva.costo_total_historico) %></strong></li>
+    <li><strong>IVA (19%):</strong> <%= formatCurrency(reserva.iva_total_solicitud_o_equivalente) %></li>
+    <li><strong>Total a Pagar:</strong> <strong><%= formatCurrency(reserva.costo_total_solicitud) %></strong></li>
   </ul>
   <p>Puedes realizar una transferencia bancaria por el <strong>Total a Pagar</strong> a la siguiente cuenta:</p>
 
@@ -29,10 +34,23 @@
   <hr>
   <h3>Detalles de tu Solicitud:</h3>
   <ul>
-    <li><strong>ID de Reserva:</strong> <%= reserva.id %></li>
+    <li><strong>ID de Reserva Principal:</strong> <%= reserva.id %></li> <%# ID de la primera reserva creada %>
     <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
-    <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
-    <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %></li>
+
+    <% if (reserva.dias_discretos_info && reserva.dias_discretos_info.length > 0) { %>
+      <li><strong>Fechas (Días Discretos):</strong></li>
+      <ul style="padding-left: 20px;">
+        <% reserva.dias_discretos_info.forEach(function(dia) { %>
+          <li><%= formatDate(dia) %></li>
+        <% }); %>
+      </ul>
+    <% } else if (reserva.end_date && reserva.end_date !== reserva.fecha_reserva) { %>
+      <li><strong>Fechas del Rango:</strong> Desde <%= formatDate(reserva.fecha_reserva) %> hasta <%= formatDate(reserva.end_date) %></li>
+    <% } else { %>
+      <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <% } %>
+
+    <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %> (para cada día aplicable)</li>
   </ul>
   <p>Saludos,<br>El equipo de Apialan AG</p>
 </div>
