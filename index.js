@@ -78,7 +78,7 @@ app.use('/auth', authRouter);
 app.use('/admin', adminRouter);
 app.use('/socios', sociosRouter);
 app.use('/cupones', cuponesRouter); // Usar rutas de cupones
-app.use('/api/blocked-dates', blockedDatesRouter); // Usar rutas de fechas bloqueadas
+app.use('/blocked-dates', blockedDatesRouter); // CORREGIDO: Usar rutas de fechas bloqueadas sin /api
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {
