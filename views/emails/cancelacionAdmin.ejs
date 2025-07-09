@@ -6,7 +6,14 @@
   <ul>
     <li><strong>ID de Reserva:</strong> <%= reserva.id %></li>
     <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
-    <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <% if (reserva.end_date && reserva.end_date !== reserva.fecha_reserva) { %>
+      <li><strong>Fechas del Rango:</strong> Desde <%= formatDate(reserva.fecha_reserva) %> hasta <%= formatDate(reserva.end_date) %></li>
+    <% } else { %>
+      <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <% } %>
+    <% if (reserva.hora_inicio && reserva.hora_termino) { %>
+      <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %></li>
+    <% } %>
   </ul>
   <p>Si tienes alguna duda sobre esta cancelación, por favor, ponte en contacto con nosotros.</p>
   <p>Saludos,<br>El equipo de Apialan AG</p>
