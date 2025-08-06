@@ -1,23 +1,37 @@
 // scripts/crear-admin.js
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') }); // Load .env from project root
+require('dotenv').config();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const readline = require('readline');
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
+// Para depurar, vamos a loguear la contraseña para asegurarnos de que se carga.
+console.log(
+  'Password from .env:',
+  process.env.DB_PASSWORD ? 'Cargada' : 'NO CARGADA'
+);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // SSL configuration might be needed if your local/dev DB requires it
-  // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  // For a CLI script, it's often simpler to assume direct connection or use a specific DB URL for admin tasks
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+  // SSL es requerido para Render
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 pool.on('error', (err, client) => {
-  console.error('Error inesperado en el cliente inactivo de la base de datos', err);
+  console.error(
+    'Error inesperado en el cliente inactivo de la base de datos',
+    err
+  );
   process.exit(-1);
 });
 
@@ -60,7 +74,6 @@ const promptPassword = (query) => {
   });
 };
 
-
 const crearAdmin = async () => {
   try {
     const nombre = await promptUser('Nombre del administrador: ');
@@ -75,7 +88,10 @@ const crearAdmin = async () => {
     }
 
     // Verificar si el email ya existe
-    const userExists = await pool.query('SELECT * FROM administradores WHERE email = $1', [email]);
+    const userExists = await pool.query(
+      'SELECT * FROM administradores WHERE email = $1',
+      [email]
+    );
     if (userExists.rowCount > 0) {
       console.error('El email ya está registrado.');
       rl.close();
@@ -92,15 +108,19 @@ const crearAdmin = async () => {
       VALUES ($1, $2, $3, $4)
       RETURNING id, nombre, email, rol;
     `;
-    const resultado = await pool.query(nuevoAdminQuery, [nombre, email, passwordHash, rol]);
+    const resultado = await pool.query(nuevoAdminQuery, [
+      nombre,
+      email,
+      passwordHash,
+      rol,
+    ]);
 
     console.log('Administrador registrado exitosamente:');
     console.log(resultado.rows[0]);
-
   } catch (err) {
     console.error('Error al crear el administrador:', err.message);
     if (err.stack) {
-        console.error(err.stack);
+      console.error(err.stack);
     }
   } finally {
     rl.close();
