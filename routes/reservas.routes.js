@@ -142,10 +142,12 @@ router.post('/', async (req, res) => {
       !hora_inicio ||
       !hora_termino
     ) {
-      return res.status(400).json({
-        error:
-          'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
-      });
+      return res
+        .status(400)
+        .json({
+          error:
+            'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
+        });
     }
 
     let startDate;
@@ -169,17 +171,21 @@ router.post('/', async (req, res) => {
           // Si fecha_fin es igual a fecha_inicio, trátalo como día único
           endDate = null; // o no lo definas, para que luego finalEndDate sea startDate
         } else if (parsedEndDate < parseISO(startDate)) {
-          return res.status(400).json({
-            error:
-              'La fecha de fin no puede ser anterior a la fecha de inicio.',
-          });
+          return res
+            .status(400)
+            .json({
+              error:
+                'La fecha de fin no puede ser anterior a la fecha de inicio.',
+            });
         } else {
           endDate = format(parsedEndDate, 'yyyy-MM-dd');
         }
       } catch (e) {
-        return res.status(400).json({
-          error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
-        });
+        return res
+          .status(400)
+          .json({
+            error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
+          });
       }
     }
 
@@ -187,10 +193,12 @@ router.post('/', async (req, res) => {
     if (dias_discretos && dias_discretos.length > 0) {
       if (fecha_fin_reserva_input) {
         // No permitir ambos
-        return res.status(400).json({
-          error:
-            'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
+          });
       }
       endDate = null; // Asegurar que no haya un endDate si son días discretos
       try {
@@ -202,9 +210,11 @@ router.post('/', async (req, res) => {
         }
         discreteDatesCleaned = [...new Set(discreteDatesCleaned)].sort();
       } catch (e) {
-        return res.status(400).json({
-          error: `Error en el formato de dias_discretos: ${e.message}`,
-        });
+        return res
+          .status(400)
+          .json({
+            error: `Error en el formato de dias_discretos: ${e.message}`,
+          });
       }
     }
 
@@ -248,9 +258,11 @@ router.post('/', async (req, res) => {
       ]);
       if (availabilityResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({
-          error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
-        });
+        return res
+          .status(409)
+          .json({
+            error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
+          });
       }
 
       const blockedDateQuery = `SELECT id FROM "blocked_dates" WHERE date = $1;`;
@@ -259,9 +271,11 @@ router.post('/', async (req, res) => {
       ]);
       if (blockedDateResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res.status(409).json({
-          error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
-        });
+        return res
+          .status(409)
+          .json({
+            error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
+          });
       }
     }
 
@@ -281,9 +295,11 @@ router.post('/', async (req, res) => {
       parseInt(hora_inicio.split(':')[0]);
     if (duracionReservaHoras <= 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        error: 'La hora de término debe ser posterior a la hora de inicio.',
-      });
+      return res
+        .status(400)
+        .json({
+          error: 'La hora de término debe ser posterior a la hora de inicio.',
+        });
     }
 
     let socioId = null;
@@ -328,9 +344,11 @@ router.post('/', async (req, res) => {
         '[POST /reservas] Error al calcular costoNetoBaseReserva por slot:',
         desgloseCostosPorSlotSinDescuento.error
       );
-      return res.status(500).json({
-        error: `Error al calcular el costo base de la reserva por slot.`,
-      });
+      return res
+        .status(500)
+        .json({
+          error: `Error al calcular el costo base de la reserva por slot.`,
+        });
     }
     const costoNetoBasePorSlot =
       desgloseCostosPorSlotSinDescuento.costoNetoBase;
@@ -360,10 +378,12 @@ router.post('/', async (req, res) => {
       }
       if (diasHabiles === 0 && diasDelRango.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
-          error:
-            'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
+          });
       }
       numeroDeSlotsFacturables = diasHabiles;
       costoNetoTotalAntesDeCupon =
@@ -624,13 +644,316 @@ router.post('/', async (req, res) => {
     if (client) await client.query('ROLLBACK');
     console.error('Error al crear la reserva:', err.stack);
     if (err.code === '23503') {
-      return res.status(400).json({
-        error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
-      });
+      return res
+        .status(400)
+        .json({
+          error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
+        });
     }
     res.status(500).json({ error: 'Error del servidor al crear la reserva.' });
   } finally {
     if (client) client.release();
+  }
+});
+
+// ----------------------------------------------------------------
+// RUTAS PROTEGIDAS (Solo para Administradores) - SIN CAMBIOS EN ESTA SECCIÓN
+// ----------------------------------------------------------------
+
+router.get('/:id', checkAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const queryText = `SELECT r.*, e.nombre AS nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1`;
+    const resultado = await pool.query(queryText, [id]);
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ error: 'Reserva no encontrada.' });
+    }
+    res.status(200).json(resultado.rows[0]);
+  } catch (err) {
+    console.error(`Error al obtener reserva ${req.params.id}:`, err.message);
+    res.status(500).json({ error: 'Error del servidor.' });
+  }
+});
+
+router.put('/:id', checkAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { estado_reserva, estado_pago } = req.body; // Usar let para poder modificar estado_pago
+
+    if (estado_reserva === undefined && estado_pago === undefined) {
+      return res
+        .status(400)
+        .json({
+          error: 'No se proporcionaron campos válidos para actualizar.',
+        });
+    }
+
+    // Lógica para auto-actualizar estado_pago si se confirma la reserva
+    if (estado_reserva === 'confirmada') {
+      estado_pago = 'pagado'; // Forzar estado_pago a 'pagado'
+    }
+
+    const camposAActualizar = [];
+    const valoresAActualizar = [];
+    let parametroIndex = 1;
+
+    if (estado_reserva !== undefined) {
+      camposAActualizar.push(`estado_reserva = $${parametroIndex++}`);
+      valoresAActualizar.push(estado_reserva);
+    }
+
+    // Asegurarse de que estado_pago se actualice si se modificó automáticamente
+    // o si vino explícitamente en la solicitud.
+    if (estado_pago !== undefined) {
+      // Si estado_reserva es 'confirmada', estado_pago ya fue forzado a 'pagado'.
+      // Si estado_reserva no es 'confirmada', se usa el estado_pago que vino en el body (si vino).
+      // Esta condición asegura que se añada a la query si hay un valor definido para estado_pago.
+      camposAActualizar.push(`estado_pago = $${parametroIndex++}`);
+      valoresAActualizar.push(estado_pago);
+    }
+
+    // Evitar query vacía si, por alguna razón, después de la lógica anterior no hay campos para actualizar
+    // (aunque la validación inicial ya cubre que al menos uno debe venir).
+    // Sin embargo, si estado_pago era el único campo y se volvió undefined, esto podría ser un problema.
+    // La lógica actual de forzar estado_pago='pagado' cuando estado_reserva='confirmada' es más simple.
+    // Si solo se envía estado_reserva='confirmada', estado_pago se añadirá.
+    // Si se envía estado_pago='pendiente' y estado_reserva='confirmada', estado_pago se sobreescribirá a 'pagado'.
+
+    if (camposAActualizar.length === 0) {
+      // Esto podría ocurrir si solo se envió estado_pago y era 'pagado' y estado_reserva era 'confirmada'
+      // y no hubo cambio real. O si la lógica se complica.
+      // Por simplicidad, si no hay campos (lo cual es raro aquí), se podría retornar la reserva sin cambios.
+      // Pero la validación inicial ya exige al menos un campo.
+      // Una forma más robusta es obtener la reserva actual y solo actualizar si hay cambios reales.
+      // Por ahora, asumimos que el frontend enviará cambios significativos o la validación inicial lo maneja.
+      return res
+        .status(400)
+        .json({
+          error:
+            'No hay campos válidos para actualizar después del procesamiento.',
+        });
+    }
+
+    const updateQuery = `UPDATE "reservas" SET ${camposAActualizar.join(
+      ', '
+    )} WHERE id = $${parametroIndex} RETURNING *;`;
+    valoresAActualizar.push(id);
+    const resultado = await pool.query(updateQuery, valoresAActualizar);
+
+    if (resultado.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ error: 'Reserva no encontrada para actualizar.' });
+    }
+
+    const reservaActualizadaQuery = `SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1`;
+    const resultadoFinal = await pool.query(reservaActualizadaQuery, [id]);
+    const reservaActualizadaConNombreEspacio = resultadoFinal.rows[0];
+
+    // Lógica de envío de correos basada en el estado_reserva que efectivamente se guardó.
+    // Usar reservaActualizadaConNombreEspacio.estado_reserva que es el valor final en la BD.
+    if (reservaActualizadaConNombreEspacio.estado_reserva === 'confirmada') {
+      // Solo enviar si el estado ANTES de esta actualización NO ERA 'confirmada' para evitar reenvíos.
+      // Esto requiere obtener el estado previo o asumir que el frontend no permite "reconfirmar" sin sentido.
+      // Por ahora, se envía siempre que el estado final sea 'confirmada'.
+      await enviarEmailReservaConfirmada(reservaActualizadaConNombreEspacio);
+    } else if (
+      reservaActualizadaConNombreEspacio.estado_reserva ===
+      'cancelada_por_admin'
+    ) {
+      await enviarEmailCancelacionAdmin(reservaActualizadaConNombreEspacio);
+    } else if (
+      reservaActualizadaConNombreEspacio.estado_reserva ===
+      'cancelada_por_cliente'
+    ) {
+      // Este estado usualmente lo actualiza el cliente, pero si el admin lo fuerza.
+      await enviarEmailCancelacionCliente(reservaActualizadaConNombreEspacio);
+    }
+
+    res
+      .status(200)
+      .json({
+        mensaje: 'Reserva actualizada exitosamente.',
+        reserva: reservaActualizadaConNombreEspacio,
+      });
+  } catch (err) {
+    console.error(
+      `Error al actualizar la reserva ${req.params.id}:`,
+      err.message
+    );
+    res
+      .status(500)
+      .json({ error: 'Error del servidor al actualizar la reserva.' });
+  }
+});
+
+router.delete('/:id', checkAuth, async (req, res) => {
+  // --- CORRECCIÓN: Se añade la llave de apertura del 'try' ---
+  try {
+    const { id } = req.params;
+    const nuevoEstado = 'cancelada_por_admin';
+    const cancelarReservaQuery = `UPDATE "reservas" SET estado_reserva = $1 WHERE id = $2 RETURNING *;`;
+    const resultadoUpdate = await pool.query(cancelarReservaQuery, [
+      nuevoEstado,
+      id,
+    ]);
+    if (resultadoUpdate.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ error: 'Reserva no encontrada para cancelar.' });
+    }
+    const reservaCanceladaQuery = `SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1`;
+    const resultadoFinal = await pool.query(reservaCanceladaQuery, [id]);
+    const reservaCancelada = resultadoFinal.rows[0];
+    await enviarEmailCancelacionAdmin(reservaCancelada);
+    res
+      .status(200)
+      .json({
+        mensaje: 'Reserva cancelada exitosamente.',
+        reserva: reservaCancelada,
+      });
+  } catch (err) {
+    console.error(
+      `Error al cancelar la reserva ${req.params.id}:`,
+      err.message
+    );
+    res
+      .status(500)
+      .json({ error: 'Error del servidor al cancelar la reserva.' });
+  }
+});
+
+// ----------------------------------------------------------------
+// RUTA PARA INICIAR EL PROCESO DE PAGO DE UNA RESERVA
+// ----------------------------------------------------------------
+router.post('/:id/iniciar-pago', checkAuth, async (req, res) => {
+  const { id: reservaId } = req.params;
+  const clienteEmail = req.userData ? req.userData.email : null; // Asumiendo que checkAuth añade userData
+
+  try {
+    // 1. Validar que la reserva exista
+    const reservaQueryResult = await pool.query(
+      'SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1',
+      [reservaId]
+    );
+    if (reservaQueryResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Reserva no encontrada.' });
+    }
+    const reserva = reservaQueryResult.rows[0];
+
+    // 1.1. Autorización: Verificar si el usuario autenticado es el dueño de la reserva
+    // Esto es una capa básica. Si los administradores también pueden iniciar pagos, la lógica necesitaría ajustarse.
+    // O si checkAuth ya valida roles de admin que pueden acceder a todo.
+    if (
+      req.userData &&
+      req.userData.role !== 'admin' &&
+      reserva.cliente_email !== clienteEmail
+    ) {
+      console.warn(
+        `[INICIAR PAGO] Intento no autorizado por usuario ${clienteEmail} para reserva ${reservaId} perteneciente a ${reserva.cliente_email}`
+      );
+      return res
+        .status(403)
+        .json({
+          error: 'No está autorizado para iniciar el pago de esta reserva.',
+        });
+    }
+    // Si no hay req.userData (p.ej. checkAuth no es estricto o es una ruta pública), esta verificación se omite.
+    // Considera si esta ruta debe ser estrictamente para usuarios autenticados. El checkAuth sugiere que sí.
+
+    // 2. Validar el estado de la reserva y el pago
+    if (reserva.estado_pago === 'pagado') {
+      return res.status(400).json({ error: 'Esta reserva ya ha sido pagada.' });
+    }
+    // Ajusta los estados permitidos según tu lógica de negocio.
+    // Por ejemplo, una reserva 'solicitada' o 'confirmada_pendiente_pago' podría ser válida para pagar.
+    const estadosValidosParaPagar = ['solicitada', 'confirmada_pendiente_pago']; // Ejemplo, ajusta según tu sistema
+    if (!estadosValidosParaPagar.includes(reserva.estado_reserva)) {
+      console.log(
+        `[INICIAR PAGO] Intento de pago para reserva ${reservaId} en estado no válido: ${reserva.estado_reserva}`
+      );
+      return res
+        .status(400)
+        .json({
+          error: `La reserva no está en un estado válido para iniciar el pago. Estado actual: ${reserva.estado_reserva}`,
+        });
+    }
+
+    // 3. LÓGICA DEL SERVICIO DE PAGO (PLACEHOLDER)
+    // =================================================================
+    // AQUÍ DEBES INTEGRAR TU SERVICIO DE PAGO (Ej: Mercado Pago, Stripe, PayPal)
+    //
+    // Ejemplo conceptual con Mercado Pago:
+    //
+    // const { MercadoPagoConfig, Preference } = require('mercadopago');
+    // const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+    // const preference = new Preference(client);
+    //
+    // const preferenceData = {
+    //   items: [
+    //     {
+    //       id: reserva.id,
+    //       title: `Reserva para ${reserva.nombre_espacio} el ${reserva.fecha_reserva}`,
+    //       quantity: 1,
+    //       unit_price: parseFloat(reserva.costo_total_historico), // Asegúrate que sea el monto correcto
+    //       currency_id: 'CLP', // O la moneda que uses
+    //     }
+    //   ],
+    //   payer: {
+    //     email: reserva.cliente_email,
+    //     // Otros datos del pagador si los tienes/necesitas
+    //   },
+    //   back_urls: { // URLs a las que Mercado Pago redirigirá al usuario
+    //     success: `${process.env.FRONTEND_URL}/pago/exitoso`,
+    //     failure: `${process.env.FRONTEND_URL}/pago/fallido`,
+    //     pending: `${process.env.FRONTEND_URL}/pago/pendiente`
+    //   },
+    //   auto_return: 'approved', // Redirige automáticamente solo si el pago es aprobado
+    //   external_reference: reserva.id.toString(), // Referencia externa, útil para webhooks
+    //   notification_url: `${process.env.API_URL}/pagos/webhook/mercadopago` // URL para notificaciones de MP
+    // };
+    //
+    // const mpResponse = await preference.create({ body: preferenceData });
+    // const urlPago = mpResponse.init_point; // URL de checkout de Mercado Pago
+    // const idPreferenciaPago = mpResponse.id; // ID de la preferencia
+    //
+    // await pool.query(
+    //   'UPDATE "reservas" SET estado_pago = $1, id_preferencia_pago = $2 WHERE id = $3',
+    //   ['pago_iniciado', idPreferenciaPago, reservaId]
+    // );
+    //
+    // =================================================================
+    // FIN LÓGICA DEL SERVICIO DE PAGO (PLACEHOLDER)
+
+    // ***** INICIO SECCIÓN SIMULADA (REEMPLAZAR CON LO DE ARRIBA) *****
+    // Simulación hasta que implementes la pasarela real:
+    const urlPagoSimulada = `https://tu-pagina-de-pagos.com/checkout?reservaId=${reservaId}&monto=${reserva.costo_total_historico}&email=${reserva.cliente_email}`;
+    const idPreferenciaSimulada = `sim_pref_${Date.now()}`;
+
+    await pool.query(
+      'UPDATE "reservas" SET estado_pago = $1, id_preferencia_pago = $2 WHERE id = $3',
+      ['pago_iniciado', idPreferenciaSimulada, reservaId]
+    );
+    console.log(
+      `[INICIAR PAGO] Reserva ID: ${reservaId}. Estado actualizado a 'pago_iniciado'. ID de preferencia simulada: ${idPreferenciaSimulada}`
+    );
+    // ***** FIN SECCIÓN SIMULADA *****
+
+    res.status(200).json({
+      mensaje: 'Proceso de pago iniciado. Redirigiendo a la pasarela de pago.',
+      reservaId: reserva.id,
+      urlPago: urlPagoSimulada, // Enviar la URL de pago real (e.g., mpResponse.init_point)
+      idPreferencia: idPreferenciaSimulada, // Enviar el ID de preferencia real (e.g., mpResponse.id)
+    });
+  } catch (err) {
+    console.error(
+      `[INICIAR PAGO ERROR] Reserva ID ${reservaId}:`,
+      err.message,
+      err.stack
+    );
+    res
+      .status(500)
+      .json({ error: 'Error del servidor al iniciar el proceso de pago.' });
   }
 });
 
