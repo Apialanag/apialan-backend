@@ -142,12 +142,10 @@ router.post('/', async (req, res) => {
       !hora_inicio ||
       !hora_termino
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
-        });
+      return res.status(400).json({
+        error:
+          'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
+      });
     }
 
     let startDate;
@@ -171,21 +169,17 @@ router.post('/', async (req, res) => {
           // Si fecha_fin es igual a fecha_inicio, trátalo como día único
           endDate = null; // o no lo definas, para que luego finalEndDate sea startDate
         } else if (parsedEndDate < parseISO(startDate)) {
-          return res
-            .status(400)
-            .json({
-              error:
-                'La fecha de fin no puede ser anterior a la fecha de inicio.',
-            });
+          return res.status(400).json({
+            error:
+              'La fecha de fin no puede ser anterior a la fecha de inicio.',
+          });
         } else {
           endDate = format(parsedEndDate, 'yyyy-MM-dd');
         }
       } catch (e) {
-        return res
-          .status(400)
-          .json({
-            error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
-          });
+        return res.status(400).json({
+          error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
+        });
       }
     }
 
@@ -193,12 +187,10 @@ router.post('/', async (req, res) => {
     if (dias_discretos && dias_discretos.length > 0) {
       if (fecha_fin_reserva_input) {
         // No permitir ambos
-        return res
-          .status(400)
-          .json({
-            error:
-              'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
-          });
+        return res.status(400).json({
+          error:
+            'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
+        });
       }
       endDate = null; // Asegurar que no haya un endDate si son días discretos
       try {
@@ -210,11 +202,9 @@ router.post('/', async (req, res) => {
         }
         discreteDatesCleaned = [...new Set(discreteDatesCleaned)].sort();
       } catch (e) {
-        return res
-          .status(400)
-          .json({
-            error: `Error en el formato de dias_discretos: ${e.message}`,
-          });
+        return res.status(400).json({
+          error: `Error en el formato de dias_discretos: ${e.message}`,
+        });
       }
     }
 
@@ -258,11 +248,9 @@ router.post('/', async (req, res) => {
       ]);
       if (availabilityResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(409)
-          .json({
-            error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
-          });
+        return res.status(409).json({
+          error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
+        });
       }
 
       const blockedDateQuery = `SELECT id FROM "blocked_dates" WHERE date = $1;`;
@@ -271,11 +259,9 @@ router.post('/', async (req, res) => {
       ]);
       if (blockedDateResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(409)
-          .json({
-            error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
-          });
+        return res.status(409).json({
+          error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
+        });
       }
     }
 
@@ -295,11 +281,9 @@ router.post('/', async (req, res) => {
       parseInt(hora_inicio.split(':')[0]);
     if (duracionReservaHoras <= 0) {
       await client.query('ROLLBACK');
-      return res
-        .status(400)
-        .json({
-          error: 'La hora de término debe ser posterior a la hora de inicio.',
-        });
+      return res.status(400).json({
+        error: 'La hora de término debe ser posterior a la hora de inicio.',
+      });
     }
 
     let socioId = null;
@@ -344,11 +328,9 @@ router.post('/', async (req, res) => {
         '[POST /reservas] Error al calcular costoNetoBaseReserva por slot:',
         desgloseCostosPorSlotSinDescuento.error
       );
-      return res
-        .status(500)
-        .json({
-          error: `Error al calcular el costo base de la reserva por slot.`,
-        });
+      return res.status(500).json({
+        error: `Error al calcular el costo base de la reserva por slot.`,
+      });
     }
     const costoNetoBasePorSlot =
       desgloseCostosPorSlotSinDescuento.costoNetoBase;
@@ -378,12 +360,10 @@ router.post('/', async (req, res) => {
       }
       if (diasHabiles === 0 && diasDelRango.length > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(400)
-          .json({
-            error:
-              'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
-          });
+        return res.status(400).json({
+          error:
+            'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
+        });
       }
       numeroDeSlotsFacturables = diasHabiles;
       costoNetoTotalAntesDeCupon =
@@ -644,14 +624,14 @@ router.post('/', async (req, res) => {
     if (client) await client.query('ROLLBACK');
     console.error('Error al crear la reserva:', err.stack);
     if (err.code === '23503') {
-      return res
-        .status(400)
-        .json({
-          error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
-        });
+      return res.status(400).json({
+        error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
+      });
     }
     res.status(500).json({ error: 'Error del servidor al crear la reserva.' });
   } finally {
     if (client) client.release();
   }
 });
+
+module.exports = router;
