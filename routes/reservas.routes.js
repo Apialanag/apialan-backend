@@ -142,12 +142,10 @@ router.post('/', async (req, res) => {
       !hora_inicio ||
       !hora_termino
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
-        });
+      return res.status(400).json({
+        error:
+          'Faltan campos obligatorios para la reserva (espacio, cliente, fecha inicio, horas).',
+      });
     }
 
     let startDate;
@@ -171,21 +169,17 @@ router.post('/', async (req, res) => {
           // Si fecha_fin es igual a fecha_inicio, trátalo como día único
           endDate = null; // o no lo definas, para que luego finalEndDate sea startDate
         } else if (parsedEndDate < parseISO(startDate)) {
-          return res
-            .status(400)
-            .json({
-              error:
-                'La fecha de fin no puede ser anterior a la fecha de inicio.',
-            });
+          return res.status(400).json({
+            error:
+              'La fecha de fin no puede ser anterior a la fecha de inicio.',
+          });
         } else {
           endDate = format(parsedEndDate, 'yyyy-MM-dd');
         }
       } catch (e) {
-        return res
-          .status(400)
-          .json({
-            error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
-          });
+        return res.status(400).json({
+          error: `Formato de fecha_fin_reserva inválido: ${e.message}`,
+        });
       }
     }
 
@@ -193,12 +187,10 @@ router.post('/', async (req, res) => {
     if (dias_discretos && dias_discretos.length > 0) {
       if (fecha_fin_reserva_input) {
         // No permitir ambos
-        return res
-          .status(400)
-          .json({
-            error:
-              'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
-          });
+        return res.status(400).json({
+          error:
+            'No se puede especificar fecha_fin_reserva y dias_discretos simultáneamente.',
+        });
       }
       endDate = null; // Asegurar que no haya un endDate si son días discretos
       try {
@@ -210,11 +202,9 @@ router.post('/', async (req, res) => {
         }
         discreteDatesCleaned = [...new Set(discreteDatesCleaned)].sort();
       } catch (e) {
-        return res
-          .status(400)
-          .json({
-            error: `Error en el formato de dias_discretos: ${e.message}`,
-          });
+        return res.status(400).json({
+          error: `Error en el formato de dias_discretos: ${e.message}`,
+        });
       }
     }
 
@@ -258,11 +248,9 @@ router.post('/', async (req, res) => {
       ]);
       if (availabilityResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(409)
-          .json({
-            error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
-          });
+        return res.status(409).json({
+          error: `El espacio ya está reservado para el horario solicitado el día ${dateToCheck}. ID conflicto: ${availabilityResult.rows[0].id}`,
+        });
       }
 
       const blockedDateQuery = `SELECT id FROM "blocked_dates" WHERE date = $1;`;
@@ -271,11 +259,9 @@ router.post('/', async (req, res) => {
       ]);
       if (blockedDateResult.rowCount > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(409)
-          .json({
-            error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
-          });
+        return res.status(409).json({
+          error: `El día ${dateToCheck} está bloqueado y no se puede reservar.`,
+        });
       }
     }
 
@@ -295,11 +281,9 @@ router.post('/', async (req, res) => {
       parseInt(hora_inicio.split(':')[0]);
     if (duracionReservaHoras <= 0) {
       await client.query('ROLLBACK');
-      return res
-        .status(400)
-        .json({
-          error: 'La hora de término debe ser posterior a la hora de inicio.',
-        });
+      return res.status(400).json({
+        error: 'La hora de término debe ser posterior a la hora de inicio.',
+      });
     }
 
     let socioId = null;
@@ -344,11 +328,9 @@ router.post('/', async (req, res) => {
         '[POST /reservas] Error al calcular costoNetoBaseReserva por slot:',
         desgloseCostosPorSlotSinDescuento.error
       );
-      return res
-        .status(500)
-        .json({
-          error: `Error al calcular el costo base de la reserva por slot.`,
-        });
+      return res.status(500).json({
+        error: `Error al calcular el costo base de la reserva por slot.`,
+      });
     }
     const costoNetoBasePorSlot =
       desgloseCostosPorSlotSinDescuento.costoNetoBase;
@@ -378,12 +360,10 @@ router.post('/', async (req, res) => {
       }
       if (diasHabiles === 0 && diasDelRango.length > 0) {
         await client.query('ROLLBACK');
-        return res
-          .status(400)
-          .json({
-            error:
-              'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
-          });
+        return res.status(400).json({
+          error:
+            'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
+        });
       }
       numeroDeSlotsFacturables = diasHabiles;
       costoNetoTotalAntesDeCupon =
@@ -447,6 +427,20 @@ router.post('/', async (req, res) => {
           cuponEsValidoEnBackend = false;
           motivoInvalidez = `El neto total de la reserva (${costoNetoTotalAntesDeCupon}) no cumple el monto mínimo del cupón de ${cupon.monto_minimo_reserva_neto}.`;
         }
+
+        // --- NUEVA VALIDACIÓN: Un solo uso por socio (configurable) ---
+        if (cupon.un_solo_uso_por_socio && socioId) {
+          const usoPrevioQuery = await client.query(
+            'SELECT id FROM reservas WHERE socio_id = $1 AND cupon_aplicado_id = $2 LIMIT 1',
+            [socioId, cupon.id]
+          );
+          if (usoPrevioQuery.rowCount > 0) {
+            cuponEsValidoEnBackend = false;
+            motivoInvalidez =
+              'Este cupón es de un solo uso y ya ha sido utilizado por este socio.';
+          }
+        }
+        // --- FIN NUEVA VALIDACIÓN ---
 
         if (cuponEsValidoEnBackend) {
           if (cupon.tipo_descuento === 'porcentaje') {
@@ -644,11 +638,9 @@ router.post('/', async (req, res) => {
     if (client) await client.query('ROLLBACK');
     console.error('Error al crear la reserva:', err.stack);
     if (err.code === '23503') {
-      return res
-        .status(400)
-        .json({
-          error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
-        });
+      return res.status(400).json({
+        error: `El espacio_id proporcionado no es válido o hay otra referencia incorrecta.`,
+      });
     }
     res.status(500).json({ error: 'Error del servidor al crear la reserva.' });
   } finally {
@@ -681,12 +673,35 @@ router.put('/:id', checkAuth, async (req, res) => {
     let { estado_reserva, estado_pago } = req.body; // Usar let para poder modificar estado_pago
 
     if (estado_reserva === undefined && estado_pago === undefined) {
-      return res
-        .status(400)
-        .json({
-          error: 'No se proporcionaron campos válidos para actualizar.',
-        });
+      return res.status(400).json({
+        error: 'No se proporcionaron campos válidos para actualizar.',
+      });
     }
+
+    // --- Lógica de Cancelación (añadida para flexibilidad) ---
+    // Si el frontend envía una cancelación a través de PUT, la manejamos aquí
+    // para evitar un error 404 si el frontend debería haber usado DELETE.
+    if (estado_reserva === 'cancelada_por_admin') {
+      const cancelarReservaQuery = `UPDATE "reservas" SET estado_reserva = $1 WHERE id = $2 RETURNING *;`;
+      const resultadoUpdate = await pool.query(cancelarReservaQuery, [
+        estado_reserva,
+        id,
+      ]);
+      if (resultadoUpdate.rowCount === 0) {
+        return res
+          .status(404)
+          .json({ error: 'Reserva no encontrada para cancelar.' });
+      }
+      const reservaCanceladaQuery = `SELECT r.*, e.nombre as nombre_espacio FROM "reservas" r JOIN "espacios" e ON r.espacio_id = e.id WHERE r.id = $1`;
+      const resultadoFinal = await pool.query(reservaCanceladaQuery, [id]);
+      const reservaCancelada = resultadoFinal.rows[0];
+      await enviarEmailCancelacionAdmin(reservaCancelada);
+      return res.status(200).json({
+        mensaje: 'Reserva cancelada exitosamente (vía PUT).',
+        reserva: reservaCancelada,
+      });
+    }
+    // --- Fin Lógica de Cancelación ---
 
     // Lógica para auto-actualizar estado_pago si se confirma la reserva
     if (estado_reserva === 'confirmada') {
@@ -726,12 +741,10 @@ router.put('/:id', checkAuth, async (req, res) => {
       // Pero la validación inicial ya exige al menos un campo.
       // Una forma más robusta es obtener la reserva actual y solo actualizar si hay cambios reales.
       // Por ahora, asumimos que el frontend enviará cambios significativos o la validación inicial lo maneja.
-      return res
-        .status(400)
-        .json({
-          error:
-            'No hay campos válidos para actualizar después del procesamiento.',
-        });
+      return res.status(400).json({
+        error:
+          'No hay campos válidos para actualizar después del procesamiento.',
+      });
     }
 
     const updateQuery = `UPDATE "reservas" SET ${camposAActualizar.join(
@@ -770,12 +783,10 @@ router.put('/:id', checkAuth, async (req, res) => {
       await enviarEmailCancelacionCliente(reservaActualizadaConNombreEspacio);
     }
 
-    res
-      .status(200)
-      .json({
-        mensaje: 'Reserva actualizada exitosamente.',
-        reserva: reservaActualizadaConNombreEspacio,
-      });
+    res.status(200).json({
+      mensaje: 'Reserva actualizada exitosamente.',
+      reserva: reservaActualizadaConNombreEspacio,
+    });
   } catch (err) {
     console.error(
       `Error al actualizar la reserva ${req.params.id}:`,
@@ -806,12 +817,10 @@ router.delete('/:id', checkAuth, async (req, res) => {
     const resultadoFinal = await pool.query(reservaCanceladaQuery, [id]);
     const reservaCancelada = resultadoFinal.rows[0];
     await enviarEmailCancelacionAdmin(reservaCancelada);
-    res
-      .status(200)
-      .json({
-        mensaje: 'Reserva cancelada exitosamente.',
-        reserva: reservaCancelada,
-      });
+    res.status(200).json({
+      mensaje: 'Reserva cancelada exitosamente.',
+      reserva: reservaCancelada,
+    });
   } catch (err) {
     console.error(
       `Error al cancelar la reserva ${req.params.id}:`,
@@ -852,11 +861,9 @@ router.post('/:id/iniciar-pago', checkAuth, async (req, res) => {
       console.warn(
         `[INICIAR PAGO] Intento no autorizado por usuario ${clienteEmail} para reserva ${reservaId} perteneciente a ${reserva.cliente_email}`
       );
-      return res
-        .status(403)
-        .json({
-          error: 'No está autorizado para iniciar el pago de esta reserva.',
-        });
+      return res.status(403).json({
+        error: 'No está autorizado para iniciar el pago de esta reserva.',
+      });
     }
     // Si no hay req.userData (p.ej. checkAuth no es estricto o es una ruta pública), esta verificación se omite.
     // Considera si esta ruta debe ser estrictamente para usuarios autenticados. El checkAuth sugiere que sí.
@@ -872,11 +879,9 @@ router.post('/:id/iniciar-pago', checkAuth, async (req, res) => {
       console.log(
         `[INICIAR PAGO] Intento de pago para reserva ${reservaId} en estado no válido: ${reserva.estado_reserva}`
       );
-      return res
-        .status(400)
-        .json({
-          error: `La reserva no está en un estado válido para iniciar el pago. Estado actual: ${reserva.estado_reserva}`,
-        });
+      return res.status(400).json({
+        error: `La reserva no está en un estado válido para iniciar el pago. Estado actual: ${reserva.estado_reserva}`,
+      });
     }
 
     // 3. LÓGICA DEL SERVICIO DE PAGO (PLACEHOLDER)
