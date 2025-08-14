@@ -71,6 +71,7 @@ const adminRouter = require('./routes/admin.routes.js');
 const sociosRouter = require('./routes/socios.routes.js');
 const cuponesRouter = require('./routes/cupones.routes.js'); // Importar rutas de cupones
 const blockedDatesRouter = require('./routes/blocked-dates.routes.js'); // Importar rutas de fechas bloqueadas
+const pagosRouter = require('./routes/pagos.routes.js'); // Importar rutas de pagos
 
 app.use('/espacios', espaciosRouter);
 app.use('/reservas', reservasRouter);
@@ -79,6 +80,7 @@ app.use('/admin', adminRouter);
 app.use('/socios', sociosRouter);
 app.use('/cupones', cuponesRouter); // Usar rutas de cupones
 app.use('/blocked-dates', blockedDatesRouter); // CORREGIDO: Usar rutas de fechas bloqueadas sin /api
+app.use('/pagos', pagosRouter); // Usar rutas de pagos
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {
