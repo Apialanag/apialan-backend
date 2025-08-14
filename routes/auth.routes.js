@@ -93,10 +93,13 @@ router.post('/login', loginLimiter, async (req, res) => {
       rol: admin.rol
     };
     
+    // Definir la duración del token basado en el rol
+    const expiresIn = admin.rol === 'admin' ? '365d' : '8h'; // 365 días para admin, 8 horas para otros
+
     const token = jwt.sign(
-      payload, 
+      payload,
       process.env.JWT_SECRET, // Necesitaremos esta variable de entorno
-      { expiresIn: '8h' } // El token expirará en 8 horas
+      { expiresIn: expiresIn }
     );
 
     res.status(200).json({
