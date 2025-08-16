@@ -1,7 +1,7 @@
 // routes/pagos.routes.js
 const express = require('express');
 const router = express.Router();
-const { payment } = require('../services/mercadopago.service.js');
+const { preference, payment } = require('../services/mercadopago.service.js');
 const pool = require('../db.js');
 
 // --- Endpoint para CREAR una preferencia de pago ---
@@ -42,11 +42,11 @@ router.post('/crear-preferencia', async (req, res) => {
       notification_url: notification_url,
     };
 
-    const preference = await payment.create({ body });
+    const result = await preference.create({ body });
 
     res.status(201).json({
-      id: preference.id,
-      init_point: preference.init_point
+      id: result.id,
+      init_point: result.init_point
     });
 
   } catch (error) {
