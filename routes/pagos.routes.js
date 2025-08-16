@@ -29,7 +29,7 @@ router.post('/crear-preferencia', async (req, res) => {
           id: reservaId,
           title: titulo,
           quantity: 1,
-          unit_price: Number(precio),
+          unit_price: parseInt(precio, 10),
           currency_id: 'CLP', // OJO: Cambiar a la moneda de tu país si no es CLP
         },
       ],
