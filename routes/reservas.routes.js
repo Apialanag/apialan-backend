@@ -132,6 +132,7 @@ router.post('/', async (req, res) => {
       facturacion_giro,
       cupon_id,
       precio_total_enviado_cliente, // Leer este campo
+      metodo_pago, // Leer el nuevo campo
     } = req.body;
 
     if (
@@ -617,13 +618,16 @@ router.post('/', async (req, res) => {
       // Y `dias_discretos_info` para que la plantilla itere.
       // `end_date` en `datosParaEmail` será el `endDate` del rango, o `null` para días discretos/único.
 
-      await enviarEmailSolicitudRecibida(datosParaEmail);
-      const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS;
-      if (adminEmail) {
-        await enviarEmailNotificacionAdminNuevaSolicitud(
-          datosParaEmail,
-          adminEmail
-        );
+      // Solo enviar el correo con instrucciones de transferencia si ese fue el método elegido
+      if (metodo_pago === 'transferencia') {
+        await enviarEmailSolicitudRecibida(datosParaEmail);
+        const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS;
+        if (adminEmail) {
+          await enviarEmailNotificacionAdminNuevaSolicitud(
+            datosParaEmail,
+            adminEmail
+          );
+        }
       }
     }
 
