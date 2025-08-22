@@ -132,20 +132,13 @@ const calcularDesgloseCostos = (
   const costoIvaCalculado = netoFinalParaIVACalculado * TASA_IVA;
   const costoTotalCalculado = netoFinalParaIVACalculado + costoIvaCalculado;
 
-  // DEBUG: Añadir un log para ver los valores calculados y redondeados.
-  const roundedValues = {
-    iva: Math.round(costoIvaCalculado),
-    total: Math.round(costoTotalCalculado),
-  };
-  console.log('[DEBUG] Valores calculados y redondeados:', roundedValues);
-
   // Redondear los valores finales para el usuario, pero mantener la precisión para los cálculos base.
   return {
     costoNetoBase: parseFloat(costoNetoBaseCalculado.toFixed(2)), // Precisión para la BD
     montoDescuentoAplicado: parseFloat(descuentoRealAplicado.toFixed(2)),
     netoFinalParaIVA: parseFloat(netoFinalParaIVACalculado.toFixed(2)), // Base para el IVA, con precisión
-    iva: roundedValues.iva, // Usar el valor redondeado
-    total: roundedValues.total, // Usar el valor redondeado
+    iva: parseFloat(costoIvaCalculado.toFixed(2)), // Usar el valor redondeado
+    total: parseFloat(costoTotalCalculado.toFixed(2)), // Usar el valor redondeado
   };
 };
 
