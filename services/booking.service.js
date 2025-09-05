@@ -1,5 +1,6 @@
 // services/booking.service.js
 const pool = require('../db');
+const { isSaturday, parseISO } = require('date-fns');
 
 const TASA_IVA = 0.19; // Tasa de IVA de Chile
 
@@ -76,53 +77,60 @@ const calcularDesgloseCostos = (
   espacio,
   duracionReserva,
   isSocioBooking,
-  montoDescuentoCupon = 0
+  montoDescuentoCupon = 0,
+  fecha_reserva // Añadido para verificar si es sábado
 ) => {
-  let precioNetoPorHoraAplicable;
+  let costoNetoBaseCalculado;
+  const fecha = parseISO(fecha_reserva);
 
-  if (isSocioBooking) {
-    const precioNetoSocioHoraStr = espacio.precio_neto_socio_por_hora;
-    precioNetoPorHoraAplicable =
-      precioNetoSocioHoraStr !== null && precioNetoSocioHoraStr !== undefined
-        ? parseFloat(precioNetoSocioHoraStr)
-        : NaN;
-    if (isNaN(precioNetoPorHoraAplicable)) {
-      console.error(
-        `Alerta: El valor de espacio.precio_neto_socio_por_hora ('${precioNetoSocioHoraStr}') no es un número válido o no está definido para el espacio ID: ${
-          espacio.id || 'desconocido'
-        }. Se intentará usar precio_neto_por_hora estándar.`
-      );
-      const precioNetoHoraStr = espacio.precio_neto_por_hora;
-      precioNetoPorHoraAplicable =
-        precioNetoHoraStr !== null && precioNetoHoraStr !== undefined
-          ? parseFloat(precioNetoHoraStr)
-          : NaN;
+  // Precios especiales para los sábados
+  const preciosSabado = {
+    general: {
+      1: 12000, // Sala chica
+      2: 18000, // Sala Mediana
+      3: 28000, // Salón grande
+    },
+    socio: {
+      1: 8000,
+      2: 10000,
+      3: 12000,
+    },
+  };
+
+  if (isSaturday(fecha)) {
+    const tipoCliente = isSocioBooking ? 'socio' : 'general';
+    const precioTotalSabado = preciosSabado[tipoCliente][espacio.id];
+
+    if (precioTotalSabado) {
+      costoNetoBaseCalculado = precioTotalSabado / (1 + TASA_IVA);
+    } else {
+      // Fallback por si el espacio.id no está en la lista
+      // (esto no debería pasar si los IDs son 1, 2, 3)
+      // Usamos la lógica estándar
+      const precioNetoPorHoraAplicable = isSocioBooking
+        ? parseFloat(espacio.precio_neto_socio_por_hora)
+        : parseFloat(espacio.precio_neto_por_hora);
+      costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
     }
   } else {
-    const precioNetoHoraStr = espacio.precio_neto_por_hora;
-    precioNetoPorHoraAplicable =
-      precioNetoHoraStr !== null && precioNetoHoraStr !== undefined
-        ? parseFloat(precioNetoHoraStr)
-        : NaN;
+    // Lógica de precios para días que no son sábado
+    const precioNetoPorHoraAplicable = isSocioBooking
+      ? parseFloat(espacio.precio_neto_socio_por_hora)
+      : parseFloat(espacio.precio_neto_por_hora);
+
+    if (isNaN(precioNetoPorHoraAplicable)) {
+      console.error(
+        `Error Crítico: No se pudo determinar un precio neto por hora válido para el espacio ID: ${
+          espacio.id || 'desconocido'
+        }. Socio: ${isSocioBooking}`
+      );
+      return {
+        error: 'No se pudo determinar un precio base válido.',
+      };
+    }
+    costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
   }
 
-  if (isNaN(precioNetoPorHoraAplicable)) {
-    console.error(
-      `Error Crítico: No se pudo determinar un precio neto por hora válido para el espacio ID: ${
-        espacio.id || 'desconocido'
-      }. Socio: ${isSocioBooking}`
-    );
-    return {
-      costoNetoBase: NaN,
-      montoDescuentoAplicado: NaN,
-      netoFinalParaIVA: NaN,
-      iva: NaN,
-      total: NaN,
-      error: 'No se pudo determinar un precio base válido.',
-    };
-  }
-
-  const costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
   const descuentoRealAplicado = Math.min(
     costoNetoBaseCalculado,
     montoDescuentoCupon || 0
@@ -132,13 +140,12 @@ const calcularDesgloseCostos = (
   const costoIvaCalculado = netoFinalParaIVACalculado * TASA_IVA;
   const costoTotalCalculado = netoFinalParaIVACalculado + costoIvaCalculado;
 
-  // Redondear los valores finales para el usuario, pero mantener la precisión para los cálculos base.
   return {
-    costoNetoBase: parseFloat(costoNetoBaseCalculado.toFixed(2)), // Precisión para la BD
+    costoNetoBase: parseFloat(costoNetoBaseCalculado.toFixed(2)),
     montoDescuentoAplicado: parseFloat(descuentoRealAplicado.toFixed(2)),
-    netoFinalParaIVA: parseFloat(netoFinalParaIVACalculado.toFixed(2)), // Base para el IVA, con precisión
-    iva: parseFloat(costoIvaCalculado.toFixed(2)), // Usar el valor redondeado
-    total: parseFloat(costoTotalCalculado.toFixed(2)), // Usar el valor redondeado
+    netoFinalParaIVA: parseFloat(netoFinalParaIVACalculado.toFixed(2)),
+    iva: parseFloat(costoIvaCalculado.toFixed(2)),
+    total: parseFloat(costoTotalCalculado.toFixed(2)),
   };
 };
 

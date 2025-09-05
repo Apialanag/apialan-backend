@@ -232,6 +232,15 @@ router.post('/', async (req, res) => {
     await client.query('BEGIN');
 
     for (const dateToCheck of datesToVerify) {
+      // Bloquear domingos
+      const dayOfWeek = getDay(parseISO(dateToCheck));
+      if (dayOfWeek === 0) { // 0 = Domingo
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `Los domingos no están disponibles para reservar. La fecha ${dateToCheck} es un domingo.`,
+        });
+      }
+
       const availabilityQuery = `
         SELECT id FROM "reservas"
         WHERE espacio_id = $1
@@ -314,72 +323,34 @@ router.post('/', async (req, res) => {
     let ivaTotalParaReserva;
     let costoTotalFinalParaReserva;
 
-    const desgloseCostosPorSlotSinDescuento = calcularDesgloseCostos(
-      espacio,
-      duracionReservaHoras,
-      isSocioBooking,
-      0
-    );
-    if (
-      desgloseCostosPorSlotSinDescuento.error ||
-      isNaN(desgloseCostosPorSlotSinDescuento.costoNetoBase)
-    ) {
-      await client.query('ROLLBACK');
-      console.error(
-        '[POST /reservas] Error al calcular costoNetoBaseReserva por slot:',
-        desgloseCostosPorSlotSinDescuento.error
+    let costoNetoTotalAntesDeCupon = 0;
+    const costosPorDia = [];
+
+    for (const fecha of datesToVerify) {
+      const desgloseDelDia = calcularDesgloseCostos(
+        espacio,
+        duracionReservaHoras,
+        isSocioBooking,
+        0,
+        fecha // Se pasa la fecha específica
       );
-      return res.status(500).json({
-        error: `Error al calcular el costo base de la reserva por slot.`,
-      });
-    }
-    const costoNetoBasePorSlot =
-      desgloseCostosPorSlotSinDescuento.costoNetoBase;
 
-    let costoNetoTotalAntesDeCupon;
-    let numeroDeSlotsFacturables = 0;
-
-    if (discreteDatesCleaned.length > 0) {
-      // Para días discretos, considerar si deben ser solo días hábiles o si los fines de semana tienen costo $0 o se excluyen.
-      // Por ahora, contamos todos los días discretos proporcionados.
-      numeroDeSlotsFacturables = discreteDatesCleaned.length;
-      costoNetoTotalAntesDeCupon =
-        costoNetoBasePorSlot * numeroDeSlotsFacturables;
-    } else if (endDate) {
-      // Rango de múltiples días
-      const diasDelRango = eachDayOfInterval({
-        start: parseISO(startDate),
-        end: parseISO(endDate),
-      });
-      let diasHabiles = 0;
-      for (const dia of diasDelRango) {
-        const dayOfWeek = getDay(dia);
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          // Lunes a Viernes
-          diasHabiles++;
-        }
-      }
-      if (diasHabiles === 0 && diasDelRango.length > 0) {
+      if (desgloseDelDia.error || isNaN(desgloseDelDia.costoNetoBase)) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
-          error:
-            'El rango seleccionado no contiene días hábiles (Lunes a Viernes) facturables.',
+        console.error(
+          '[POST /reservas] Error al calcular costoNetoBaseReserva por slot:',
+          desgloseDelDia.error
+        );
+        return res.status(500).json({
+          error: `Error al calcular el costo base de la reserva para el día ${fecha}.`,
         });
       }
-      numeroDeSlotsFacturables = diasHabiles;
-      costoNetoTotalAntesDeCupon =
-        costoNetoBasePorSlot * numeroDeSlotsFacturables;
-    } else {
-      // Día único
-      numeroDeSlotsFacturables = 1; // Asumimos que un día único es facturable (si no es fin de semana y la política lo indica, se ajustaría aquí)
-      // Por ahora, si es un día único, se cobra.
-      costoNetoTotalAntesDeCupon = costoNetoBasePorSlot;
+      costoNetoTotalAntesDeCupon += desgloseDelDia.costoNetoBase;
+      costosPorDia.push({ fecha, costo: desgloseDelDia });
     }
 
-    if (numeroDeSlotsFacturables === 0) {
+    if (datesToVerify.length === 0) {
       await client.query('ROLLBACK');
-      // discreteDatesCleaned.length > 0 ya fue manejado arriba si este es el caso.
-      // Esto cubre el caso de un rango que solo tenía fines de semana.
       return res
         .status(400)
         .json({ error: 'No se encontraron días facturables para la reserva.' });
@@ -508,8 +479,9 @@ router.post('/', async (req, res) => {
     `;
 
     const reservasCreadas = [];
+    const numeroDeSlotsFacturables = datesToVerify.length;
 
-    if (discreteDatesCleaned.length > 0) {
+    if (discreteDatesCleaned.length > 0 || (endDate && datesToVerify.length > 1)) {
       let descuentoPorSlot = 0;
       if (numeroDeSlotsFacturables > 0 && montoDescuentoFinalBackend > 0) {
         descuentoPorSlot = parseFloat(
@@ -517,13 +489,14 @@ router.post('/', async (req, res) => {
         );
       }
 
-      for (const discreteDate of discreteDatesCleaned) {
+      for (const dia of costosPorDia) {
         // Calcular costo para este slot discreto específico, aplicando su porción de descuento
         const desgloseEsteSlot = calcularDesgloseCostos(
           espacio,
           duracionReservaHoras,
           isSocioBooking,
-          descuentoPorSlot
+          descuentoPorSlot,
+          dia.fecha
         );
 
         const values = [
@@ -531,8 +504,8 @@ router.post('/', async (req, res) => {
           cliente_nombre,
           cliente_email,
           cliente_telefono,
-          discreteDate,
-          discreteDate,
+          dia.fecha,
+          dia.fecha,
           hora_inicio,
           hora_termino,
           desgloseEsteSlot.total, // costo_total
@@ -553,8 +526,8 @@ router.post('/', async (req, res) => {
         reservasCreadas.push(resultado.rows[0]);
       }
     } else {
-      // Reserva de día único o rango
-      const finalInsertEndDate = endDate ? endDate : startDate; // Si es día único, end_date es igual a startDate
+      // Reserva de día único
+      const finalInsertEndDate = endDate ? endDate : startDate;
       const values = [
         espacio_id,
         cliente_nombre,
