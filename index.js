@@ -99,6 +99,12 @@ app.get('/testdb', async (req, res) => {
 });
 
 // --- INICIO DEL SERVIDOR (siempre al final) ---
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
+// Solo iniciar el servidor si el archivo se ejecuta directamente
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
+  });
+}
+
+// Exportar la app para poder usarla en las pruebas
+module.exports = app;

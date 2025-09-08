@@ -1,8 +1,68 @@
 // routes/pagos.routes.js
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { preference, payment } = require('../services/mercadopago.service.js');
 const pool = require('../db.js');
+const { enviarEmailReservaConfirmada } = require('../services/email.service.js');
+
+/**
+ * Función auxiliar para confirmar una reserva en la base de datos y enviar el email de confirmación.
+ * Maneja su propia transacción de base de datos.
+ * @param {string} reservaId El ID de la reserva a confirmar.
+ * @returns {Promise<{success: boolean, message: string, status: number}>}
+ */
+async function confirmarReservaYEnviarEmail(reservaId) {
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    // 1. Verificar si la reserva ya está confirmada para evitar acciones duplicadas
+    const currentReserva = await client.query('SELECT estado_reserva FROM reservas WHERE id = $1', [reservaId]);
+    if (currentReserva.rows.length > 0 && currentReserva.rows[0].estado_reserva === 'confirmada') {
+      console.log(`La reserva ${reservaId} ya estaba confirmada.`);
+      await client.query('COMMIT'); // Hacemos commit para cerrar la transacción de forma segura
+      return { success: true, message: 'Reserva ya confirmada.', status: 200 };
+    }
+
+    // 2. Actualizar el estado de la reserva y el pago
+    const updateQuery = 'UPDATE reservas SET estado_reserva = $1, estado_pago = $2 WHERE id = $3';
+    await client.query(updateQuery, ['confirmada', 'pagado', reservaId]);
+
+    // 3. Obtener los datos completos de la reserva para enviar el email
+    const reservaCompletaQuery = `
+      SELECT r.*, e.nombre AS nombre_espacio
+      FROM reservas r
+      JOIN espacios e ON r.espacio_id = e.id
+      WHERE r.id = $1
+    `;
+    const resultadoFinal = await client.query(reservaCompletaQuery, [reservaId]);
+    const reservaActualizada = resultadoFinal.rows[0];
+
+    // 4. Enviar el email de confirmación
+    if (reservaActualizada) {
+      await enviarEmailReservaConfirmada(reservaActualizada);
+      console.log(`Correo de confirmación enviado para la reserva ${reservaId}.`);
+    }
+
+    await client.query('COMMIT');
+    console.log(`Reserva ${reservaId} actualizada y confirmada exitosamente.`);
+    return { success: true, message: 'Reserva confirmada exitosamente.', status: 200 };
+
+  } catch (dbError) {
+    if (client) {
+      await client.query('ROLLBACK');
+    }
+    console.error(`Error de base de datos al confirmar la reserva ${reservaId}:`, dbError);
+    return { success: false, message: 'Error de base de datos al actualizar la reserva.', status: 500 };
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}
+
 
 // --- Endpoint para CREAR una preferencia de pago ---
 // POST /pagos/crear-preferencia
@@ -63,61 +123,18 @@ router.post('/webhook', async (req, res) => {
 
   if (type === 'payment') {
     try {
-      const paymentId = data.id;
-      console.log(`Procesando notificación para el pago ID: ${paymentId}`);
-
-      const paymentInfo = await payment.get({ id: paymentId });
-
-      console.log('--- Detalles del Pago Obtenidos ---');
-      console.log(paymentInfo);
+      const paymentInfo = await payment.get({ id: data.id });
+      console.log('--- Detalles del Pago Obtenidos ---', paymentInfo);
 
       if (paymentInfo.status === 'approved') {
-        const reservaId = paymentInfo.items[0]?.id;
+        const reservaId = paymentInfo.metadata?.reserva_id || paymentInfo.items?.[0]?.id;
         if (reservaId) {
           console.log(`Pago aprobado para la reserva ID: ${reservaId}. Actualizando base de datos...`);
-
-          const client = await pool.connect();
-          try {
-            await client.query('BEGIN');
-
-            // Obtener el estado actual para evitar enviar correos múltiples
-            const currentReserva = await client.query('SELECT estado_reserva FROM reservas WHERE id = $1', [reservaId]);
-            if (currentReserva.rows.length > 0 && currentReserva.rows[0].estado_reserva === 'confirmada') {
-              console.log(`La reserva ${reservaId} ya estaba confirmada. No se realizarán más acciones.`);
-              await client.query('COMMIT');
-              return res.status(200).send('Webhook procesado. Reserva ya confirmada.');
-            }
-
-            // Actualizar el estado de la reserva y el estado del pago
-            const updateQuery = 'UPDATE reservas SET estado_reserva = $1, estado_pago = $2 WHERE id = $3';
-            await client.query(updateQuery, ['confirmada', 'pagado', reservaId]);
-
-            // Obtener los datos completos de la reserva para enviar el email
-            const reservaCompletaQuery = `
-              SELECT r.*, e.nombre AS nombre_espacio
-              FROM reservas r
-              JOIN espacios e ON r.espacio_id = e.id
-              WHERE r.id = $1
-            `;
-            const resultadoFinal = await client.query(reservaCompletaQuery, [reservaId]);
-            const reservaActualizada = resultadoFinal.rows[0];
-
-            if (reservaActualizada) {
-              const { enviarEmailReservaConfirmada } = require('../services/email.service.js');
-              await enviarEmailReservaConfirmada(reservaActualizada);
-              console.log(`Correo de confirmación enviado para la reserva ${reservaId}.`);
-            }
-
-            await client.query('COMMIT');
-            console.log(`Reserva ${reservaId} actualizada y confirmada exitosamente.`);
-
-          } catch (dbError) {
-            await client.query('ROLLBACK');
-            console.error('Error de base de datos al procesar el webhook:', dbError);
-            // Devolvemos 500 para que Mercado Pago pueda reintentar la notificación.
-            return res.status(500).json({ error: 'Error de base de datos al actualizar la reserva.' });
-          } finally {
-            client.release();
+          // Usar la función auxiliar para manejar la lógica de la BD y el email
+          const confirmacionResult = await confirmarReservaYEnviarEmail(reservaId);
+          if (!confirmacionResult.success) {
+            // Si la confirmación falla, MP debe reintentar. Devolvemos 500.
+            return res.status(500).json({ error: confirmacionResult.message });
           }
         }
       }
@@ -129,6 +146,87 @@ router.post('/webhook', async (req, res) => {
   }
 
   res.status(200).send('Webhook recibido.');
+});
+
+
+// --- Endpoint para PROCESAR un pago con tarjeta (API Checkout) ---
+// POST /pagos/procesar-pago
+router.post('/procesar-pago', async (req, res) => {
+  try {
+    const {
+      token,
+      issuer_id,
+      payment_method_id,
+      transaction_amount,
+      installments,
+      payer,
+      reservaId
+    } = req.body;
+
+    if (!token || !transaction_amount || !installments || !payment_method_id || !payer || !reservaId) {
+      return res.status(400).json({ error: 'Faltan datos requeridos para procesar el pago.' });
+    }
+
+    const payment_data = {
+      transaction_amount: Number(transaction_amount),
+      token: token,
+      description: `Reserva de espacio ID: ${reservaId}`,
+      installments: Number(installments),
+      payment_method_id: payment_method_id,
+      issuer_id: issuer_id,
+      payer: {
+        email: payer.email,
+        identification: {
+          type: payer.identification.type,
+          number: payer.identification.number,
+        },
+      },
+      metadata: {
+        reserva_id: reservaId,
+      }
+    };
+
+    const idempotencyKey = crypto.randomUUID();
+    const requestOptions = { idempotencyKey };
+
+    console.log(`Intentando procesar pago para reserva ID: ${reservaId}...`);
+    const paymentResult = await payment.create({ body: payment_data, requestOptions });
+    console.log('Respuesta de Mercado Pago:', paymentResult);
+
+    // Si el pago es aprobado, confirmar la reserva en la BD
+    if (paymentResult.status === 'approved') {
+      const confirmacionResult = await confirmarReservaYEnviarEmail(reservaId);
+      if (confirmacionResult.success) {
+        return res.status(201).json({
+          status: 'approved',
+          message: 'Pago procesado y reserva confirmada exitosamente.',
+          paymentId: paymentResult.id,
+        });
+      } else {
+        // El pago se realizó, pero la BD falló. Esto es un estado crítico.
+        console.error(`CRÍTICO: El pago ${paymentResult.id} fue aprobado pero la confirmación de la reserva ${reservaId} falló.`);
+        return res.status(500).json({
+          status: 'approved_but_confirmation_failed',
+          message: 'El pago fue exitoso, pero ocurrió un error al confirmar la reserva.',
+          paymentId: paymentResult.id,
+        });
+      }
+    } else {
+      // Si el pago no fue aprobado, devolver el estado y mensaje de MP
+      return res.status(400).json({
+        status: paymentResult.status,
+        message: paymentResult.status_detail || 'El pago fue rechazado.',
+        paymentId: paymentResult.id,
+      });
+    }
+
+  } catch (error) {
+    console.error('Error al procesar el pago:', error);
+    if (error.cause) {
+      return res.status(error.status || 500).json({ error: 'Error de Mercado Pago', cause: error.cause });
+    }
+    res.status(500).json({ error: 'Error del servidor al procesar el pago.' });
+  }
 });
 
 module.exports = router;
