@@ -24,6 +24,7 @@ jest.mock('../db.js', () => ({
 
 jest.mock('../services/email.service.js', () => ({
   enviarEmailReservaConfirmada: jest.fn(),
+  enviarEmailNotificacionAdminNuevaSolicitud: jest.fn(),
 }));
 
 
@@ -141,12 +142,15 @@ describe('Rutas de Pagos - /pagos', () => {
         .post('/pagos/webhook')
         .send({ type: 'payment', data: { id: mockPaymentId } });
 
+      const { enviarEmailNotificacionAdminNuevaSolicitud } = require('../services/email.service.js');
+
       expect(payment.get).toHaveBeenCalledWith({ id: mockPaymentId });
       expect(pool.connect).toHaveBeenCalledTimes(1);
       expect(mockDbClient.query).toHaveBeenCalledWith('BEGIN');
       expect(mockDbClient.query).toHaveBeenCalledWith('SELECT estado_reserva FROM reservas WHERE id = $1', [mockReservaId]);
       expect(mockDbClient.query).toHaveBeenCalledWith('UPDATE reservas SET estado_reserva = $1, estado_pago = $2 WHERE id = $3', ['confirmada', 'pagado', mockReservaId]);
       expect(enviarEmailReservaConfirmada).toHaveBeenCalledTimes(1);
+      expect(enviarEmailNotificacionAdminNuevaSolicitud).toHaveBeenCalledTimes(1);
       expect(mockDbClient.query).toHaveBeenCalledWith('COMMIT');
       expect(mockDbClient.release).toHaveBeenCalledTimes(1);
       expect(response.status).toBe(200);
@@ -272,9 +276,12 @@ describe('Rutas de Pagos - /pagos', () => {
         .post('/pagos/procesar-pago')
         .send(mockPaymentRequest);
 
+      const { enviarEmailNotificacionAdminNuevaSolicitud } = require('../services/email.service.js');
+
       expect(payment.create).toHaveBeenCalledTimes(1);
       expect(pool.connect).toHaveBeenCalledTimes(1);
       expect(enviarEmailReservaConfirmada).toHaveBeenCalledTimes(1);
+      expect(enviarEmailNotificacionAdminNuevaSolicitud).toHaveBeenCalledTimes(1);
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         status: 'approved',

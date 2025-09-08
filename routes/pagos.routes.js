@@ -4,7 +4,10 @@ const crypto = require('crypto');
 const router = express.Router();
 const { preference, payment } = require('../services/mercadopago.service.js');
 const pool = require('../db.js');
-const { enviarEmailReservaConfirmada } = require('../services/email.service.js');
+const {
+  enviarEmailReservaConfirmada,
+  enviarEmailNotificacionAdminNuevaSolicitud
+} = require('../services/email.service.js');
 
 /**
  * Función auxiliar para confirmar una reserva en la base de datos y enviar el email de confirmación.
@@ -40,10 +43,18 @@ async function confirmarReservaYEnviarEmail(reservaId) {
     const resultadoFinal = await client.query(reservaCompletaQuery, [reservaId]);
     const reservaActualizada = resultadoFinal.rows[0];
 
-    // 4. Enviar el email de confirmación
+    // 4. Enviar emails de confirmación
     if (reservaActualizada) {
+      // Email de confirmación para el cliente
       await enviarEmailReservaConfirmada(reservaActualizada);
-      console.log(`Correo de confirmación enviado para la reserva ${reservaId}.`);
+
+      // Email de notificación para el administrador
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        await enviarEmailNotificacionAdminNuevaSolicitud(reservaActualizada, adminEmail);
+      } else {
+        console.warn('ADVERTENCIA: La variable de entorno ADMIN_EMAIL no está configurada. No se envió notificación al administrador.');
+      }
     }
 
     await client.query('COMMIT');
