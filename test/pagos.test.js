@@ -326,14 +326,14 @@ describe('Rutas de Pagos - /pagos', () => {
       });
     });
 
-    it('debería retornar 400 si faltan datos en la solicitud', async () => {
-      const { reservaId, ...incompleteRequest } = mockPaymentRequest;
+    it('debería retornar 400 si falta el token en la solicitud', async () => {
+      const { token, ...incompleteRequest } = mockPaymentRequest;
       const response = await request(app)
         .post('/pagos/procesar-pago')
         .send(incompleteRequest);
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Faltan datos requeridos para procesar el pago.');
+      expect(response.body.error).toBe('El campo "token" es requerido.');
     });
   });
 });

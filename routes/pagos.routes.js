@@ -163,9 +163,14 @@ router.post('/procesar-pago', async (req, res) => {
       reservaId
     } = req.body;
 
-    if (!token || !transaction_amount || !installments || !payment_method_id || !payer || !reservaId) {
-      return res.status(400).json({ error: 'Faltan datos requeridos para procesar el pago.' });
-    }
+    // Validación de entrada más específica para mejor depuración
+    if (!token) return res.status(400).json({ error: 'El campo "token" es requerido.' });
+    if (!transaction_amount) return res.status(400).json({ error: 'El campo "transaction_amount" es requerido.' });
+    if (installments == null) return res.status(400).json({ error: 'El campo "installments" es requerido.' });
+    if (!payment_method_id) return res.status(400).json({ error: 'El campo "payment_method_id" es requerido.' });
+    if (!payer) return res.status(400).json({ error: 'El objeto "payer" es requerido.' });
+    if (!reservaId) return res.status(400).json({ error: 'El campo "reservaId" es requerido.' });
+
 
     const payment_data = {
       transaction_amount: Number(transaction_amount),
