@@ -19,18 +19,8 @@ const whitelist = [
 ];
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Log para depurar el valor de origin que llega al backend
-    console.log('CORS check: Request origin:', origin);
-    console.log('CORS whitelist:', whitelist);
-    if (whitelist.includes(origin) || !origin) {
-      console.log('CORS check: Origin PERMITIDO.');
-      callback(null, true);
-    } else {
-      console.log('CORS check: Origin DENEGADO.');
-      callback(new Error('No permitido por la política de CORS'));
-    }
-  }
+  origin: whitelist,
+  optionsSuccessStatus: 200 // For legacy browser support
 };
 
 app.use(cors(corsOptions));
