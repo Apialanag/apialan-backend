@@ -594,12 +594,14 @@ router.post('/', async (req, res) => {
       // Solo enviar el correo con instrucciones de transferencia si ese fue el método elegido
       if (metodo_pago === 'transferencia') {
         await enviarEmailSolicitudRecibida(datosParaEmail);
-        const adminEmail = process.env.ADMIN_EMAIL_NOTIFICATIONS;
+        const adminEmail = process.env.ADMIN_EMAIL;
         if (adminEmail) {
           await enviarEmailNotificacionAdminNuevaSolicitud(
             datosParaEmail,
             adminEmail
           );
+        } else {
+          console.warn('ADVERTENCIA: La variable de entorno ADMIN_EMAIL no está configurada. No se envió la notificación de nueva solicitud al administrador.');
         }
       }
     }
