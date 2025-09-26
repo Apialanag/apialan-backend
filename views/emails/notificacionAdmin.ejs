@@ -1,0 +1,50 @@
+<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+  <h2 style="color: #4f46e5;">Notificación de Nueva Solicitud de Reserva</h2>
+  <p>Se ha recibido una nueva solicitud de reserva a través del sistema.</p>
+
+  <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Detalles del Cliente</h3>
+  <ul>
+    <li><strong>Nombre:</strong> <%= reserva.cliente_nombre %></li>
+    <li><strong>Email:</strong> <%= reserva.cliente_email %></li>
+    <li><strong>Teléfono:</strong> <%= reserva.cliente_telefono || 'No proporcionado' %></li>
+  </ul>
+
+  <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Detalles de la Reserva</h3>
+  <ul>
+    <li><strong>ID de Reserva Principal:</strong> <%= reserva.id %></li>
+    <li><strong>Salón:</strong> <%= reserva.nombre_espacio %></li>
+
+    <% if (reserva.dias_discretos_info && reserva.dias_discretos_info.length > 0) { %>
+      <li><strong>Fechas (Días Discretos):</strong></li>
+      <ul style="padding-left: 20px;">
+        <% reserva.dias_discretos_info.forEach(function(dia) { %>
+          <li><%= formatDate(dia) %></li>
+        <% }); %>
+      </ul>
+    <% } else if (reserva.end_date && reserva.end_date !== reserva.fecha_reserva) { %>
+      <li><strong>Fechas del Rango:</strong> Desde <%= formatDate(reserva.fecha_reserva) %> hasta <%= formatDate(reserva.end_date) %></li>
+    <% } else { %>
+      <li><strong>Fecha:</strong> <%= formatDate(reserva.fecha_reserva) %></li>
+    <% } %>
+
+    <li><strong>Horario:</strong> <%= formatTime(reserva.hora_inicio) %> - <%= formatTime(reserva.hora_termino) %></li>
+    <% if (reserva.notas_adicionales) { %>
+        <li><strong>Notas Adicionales:</strong> <%= reserva.notas_adicionales %></li>
+    <% } %>
+  </ul>
+
+  <h3 style="border-bottom: 2px solid #e0e7ff; padding-bottom: 5px; color: #3730a3;">Desglose de Costos (Calculado por el sistema)</h3>
+  <ul style="list-style-type: none; padding-left: 0;">
+    <li><strong>Subtotal Neto:</strong> <%= formatCurrency(reserva.costo_neto_total_solicitud_o_equivalente) %></li>
+    <% const montoDescuento = parseFloat(reserva.monto_descuento_total_solicitud_o_equivalente); %>
+    <% if (montoDescuento && montoDescuento > 0) { %>
+      <li><strong>Descuento Cupón:</strong> - <%= formatCurrency(montoDescuento) %></li>
+      <li><strong>Neto con Descuento:</strong> <%= formatCurrency(parseFloat(reserva.costo_neto_total_solicitud_o_equivalente) - montoDescuento) %></li>
+    <% } %>
+    <li><strong>IVA (19%):</strong> <%= formatCurrency(reserva.iva_total_solicitud_o_equivalente) %></li>
+    <li><strong>Total Calculado:</strong> <strong><%= formatCurrency(reserva.costo_total_solicitud) %></strong></li>
+  </ul>
+
+  <p style="margin-top: 20px;">Puedes gestionar esta reserva en el panel de administración.</p>
+  <p>Saludos,<br>Sistema de Notificaciones Apialan AG</p>
+</div>

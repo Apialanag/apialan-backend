@@ -115,7 +115,7 @@ const enviarEmailNotificacionAdminNuevaSolicitud = async (reservaData, adminEmai
     // Asumiendo que tienes una plantilla llamada notificacionAdmin.ejs
     const htmlContent = await ejs.renderFile(
         path.join(__dirname, '../views/emails/notificacionAdmin.ejs'),
-        { reservaData, formatCurrency, formatDate, formatTime }
+        { reserva: reservaData, formatCurrency, formatDate, formatTime }
       );
 
   const msg = {
