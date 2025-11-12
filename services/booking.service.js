@@ -102,7 +102,7 @@ const calcularDesgloseCostos = (
     const precioTotalSabado = preciosSabado[tipoCliente][espacio.id];
 
     if (precioTotalSabado) {
-      costoNetoBaseCalculado = precioTotalSabado / (1 + TASA_IVA);
+      costoNetoBaseCalculado = precioTotalSabado;
     } else {
       // Fallback por si el espacio.id no está en la lista
       // (esto no debería pasar si los IDs son 1, 2, 3)
