@@ -90,7 +90,8 @@ const calcularDesgloseCostos = (
       .trim()
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
   };
 
   // Precios especiales para los sábados, usando nombres normalizados para más robustez
