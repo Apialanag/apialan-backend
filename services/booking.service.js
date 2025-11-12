@@ -83,10 +83,11 @@ const calcularDesgloseCostos = (
   let costoNetoBaseCalculado;
   const fecha = parseISO(fecha_reserva);
 
-  // Helper para normalizar strings (quitar tildes, minúsculas)
+  // Helper para normalizar strings (quitar tildes, minúsculas y espacios)
   const normalizeString = (str) => {
     if (!str) return '';
     return str
+      .trim()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
