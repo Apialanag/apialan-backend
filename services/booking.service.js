@@ -98,20 +98,31 @@ const calcularDesgloseCostos = (
   };
 
   if (isSaturday(fecha)) {
-    const tipoCliente = isSocioBooking ? 'socio' : 'general';
-    const precioTotalSabado = preciosSabado[tipoCliente][espacio.id];
-
-    if (precioTotalSabado) {
-      costoNetoBaseCalculado =
-        (precioTotalSabado * duracionReserva) / (1 + TASA_IVA);
+    if (isSocioBooking) {
+      // Para socios, el precio del sábado es un neto fijo, sin importar la duración.
+      const precioNetoSocio = preciosSabado.socio[espacio.id];
+      if (precioNetoSocio) {
+        costoNetoBaseCalculado = precioNetoSocio;
+      } else {
+        // Fallback (lógica original por si acaso)
+        const precioNetoPorHoraAplicable = parseFloat(
+          espacio.precio_neto_socio_por_hora
+        );
+        costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
+      }
     } else {
-      // Fallback por si el espacio.id no está en la lista
-      // (esto no debería pasar si los IDs son 1, 2, 3)
-      // Usamos la lógica estándar
-      const precioNetoPorHoraAplicable = isSocioBooking
-        ? parseFloat(espacio.precio_neto_socio_por_hora)
-        : parseFloat(espacio.precio_neto_por_hora);
-      costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
+      // Para clientes generales, el precio del sábado es un total por hora.
+      const precioTotalGeneralPorHora = preciosSabado.general[espacio.id];
+      if (precioTotalGeneralPorHora) {
+        const costoTotal = precioTotalGeneralPorHora * duracionReserva;
+        costoNetoBaseCalculado = costoTotal / (1 + TASA_IVA);
+      } else {
+        // Fallback (lógica original por si acaso)
+        const precioNetoPorHoraAplicable = parseFloat(
+          espacio.precio_neto_por_hora
+        );
+        costoNetoBaseCalculado = precioNetoPorHoraAplicable * duracionReserva;
+      }
     }
   } else {
     // Lógica de precios para días que no son sábado
