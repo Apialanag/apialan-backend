@@ -111,13 +111,30 @@ const calcularDesgloseCostos = (
   if (isSaturday(fecha)) {
     const normalizedEspacioNombre = normalizeString(espacio.nombre);
 
+    // Búsqueda flexible de precios
+    const findPrice = (normalizedName, priceMap) => {
+      if (normalizedName.includes('salon grande')) {
+        return priceMap['salon grande'];
+      }
+      if (normalizedName.includes('sala mediana')) {
+        return priceMap['sala mediana'];
+      }
+      if (normalizedName.includes('sala chica')) {
+        return priceMap['sala chica'];
+      }
+      return null;
+    };
+
     if (isSocioBooking) {
-      // Para socios, el precio del sábado es un neto fijo, sin importar la duración.
-      const precioNetoSocio = preciosSabado.socio[normalizedEspacioNombre];
+      // Para socios, el precio del sábado es un neto fijo.
+      const precioNetoSocio = findPrice(
+        normalizedEspacioNombre,
+        preciosSabado.socio
+      );
       if (precioNetoSocio) {
         costoNetoBaseCalculado = precioNetoSocio;
       } else {
-        // Fallback si el nombre del espacio no coincide
+        // Fallback si el nombre no contiene ninguna palabra clave
         const precioNetoPorHoraAplicable = parseFloat(
           espacio.precio_neto_socio_por_hora
         );
@@ -125,13 +142,15 @@ const calcularDesgloseCostos = (
       }
     } else {
       // Para clientes generales, el precio del sábado es un total por hora.
-      const precioTotalGeneralPorHora =
-        preciosSabado.general[normalizedEspacioNombre];
+      const precioTotalGeneralPorHora = findPrice(
+        normalizedEspacioNombre,
+        preciosSabado.general
+      );
       if (precioTotalGeneralPorHora) {
         const costoTotal = precioTotalGeneralPorHora * duracionReserva;
         costoNetoBaseCalculado = costoTotal / (1 + TASA_IVA);
       } else {
-        // Fallback si el nombre del espacio no coincide
+        // Fallback si el nombre no contiene ninguna palabra clave
         const precioNetoPorHoraAplicable = parseFloat(
           espacio.precio_neto_por_hora
         );
