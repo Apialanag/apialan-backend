@@ -97,12 +97,12 @@ const calcularDesgloseCostos = (
   // Precios especiales para los sábados, usando nombres normalizados para más robustez
   const preciosSabado = {
     general: {
-      'sala chica': 12000,
+      'sala pequena': 12000,
       'sala mediana': 18000,
       'salon grande': 28000,
     },
     socio: {
-      'sala chica': 8000,
+      'sala pequena': 8000,
       'sala mediana': 10000,
       'salon grande': 12000,
     },
@@ -119,8 +119,12 @@ const calcularDesgloseCostos = (
       if (normalizedName.includes('sala mediana')) {
         return priceMap['sala mediana'];
       }
-      if (normalizedName.includes('sala chica')) {
-        return priceMap['sala chica'];
+      // Busca 'pequena' o 'chica' para máxima compatibilidad.
+      if (
+        normalizedName.includes('pequena') ||
+        normalizedName.includes('chica')
+      ) {
+        return priceMap['sala pequena'];
       }
       return null;
     };
